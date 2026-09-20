@@ -1165,9 +1165,11 @@ describe.each(['gen9championsvgc2026regmb'])(
       expect(count).toBeLessThan(600);
     });
 
-    it('gives Incineroar Fake Out and Knock Off', () => {
-      expect(data.learnsets.incineroar).toContain('fakeout');
-      expect(data.learnsets.incineroar).toContain('knockoff');
+    it('gives Incineroar the moves real ladder teams run on it', () => {
+      // Confirmed against Smogon gen9championsvgc2026regmb-1630 usage (2026-08): 99.8%, 93.8%, 88.8%, 41.2%.
+      for (const move of ['fakeout', 'partingshot', 'flareblitz', 'throatchop']) {
+        expect(data.learnsets.incineroar, move).toContain(move);
+      }
     });
 
     it('has a learnset for every legal species, and every learnset move is in the moves table', () => {
@@ -2086,9 +2088,10 @@ The spec's Testing section requires sync parser tests against saved fixture file
 - Create: `sync/smogon/fixtures/chaos-sample.json` (generated, then committed)
 - Create: `scripts/make-chaos-sample.ts` (throwaway; deleted before committing)
 - Test: `sync/smogon/chaos.real-sample.test.ts`
+- Test: `sync/data-agreement.integration.test.ts` (slow; uses the real `pokemon-showdown` package)
 
 **Interfaces:**
-- Consumes: `fetchLatestChaos` (Task 4), `parseChaos`, `pruneChaos`, `parseSpread`, `DEFAULT_PRUNE` (Task 2), `teammateLift`, `cooccurrence` (Task 3).
+- Consumes: `fetchLatestChaos` (Task 4), `parseChaos`, `pruneChaos`, `parseSpread`, `DEFAULT_PRUNE` (Task 2), `teammateLift`, `cooccurrence` (Task 3), `loadShowdownFormat` (Task 5), `toID` (Task 1).
 - Produces: nothing later tasks use.
 
 - [ ] **Step 1: Generate the fixture from the live Smogon data**
@@ -2210,10 +2213,56 @@ npm run typecheck
 
 Expected: all 6 tests PASS; no type errors. A failure here is a finding about the real data, not a reason to loosen the test; report it.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Cross-check Showdown legality against real ladder usage**
+
+The two data sources are independent; if the Showdown loader says a species cannot learn a move that real ladder teams run on it, one of them is wrong (Task 5 already caught one wrong assumption this way). Lock that agreement in.
+
+`sync/data-agreement.integration.test.ts`:
+
+```ts
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { toID } from '../src/domain/id';
+import { loadShowdownFormat } from './showdown/source';
+import { parseChaos } from './smogon/chaos';
+
+describe('Showdown legality agrees with Smogon ladder usage (gen9championsvgc2026regmb)', () => {
+  it('lets each sampled species learn every move used in at least 1% of its sets', () => {
+    const raw = parseChaos(readFileSync(new URL('./smogon/fixtures/chaos-sample.json', import.meta.url), 'utf8'));
+    const data = loadShowdownFormat('gen9championsvgc2026regmb');
+
+    for (const [name, mon] of Object.entries(raw.data)) {
+      const weight = Object.values(mon.Abilities).reduce((a, b) => a + b, 0);
+      const learnset = new Set(data.learnsets[toID(name)] ?? []);
+      expect(learnset.size, `${name} has a learnset`).toBeGreaterThan(0);
+
+      for (const [move, count] of Object.entries(mon.Moves)) {
+        const id = toID(move);
+        const share = count / weight;
+        if (!id || share < 0.01) continue;
+        expect(
+          learnset.has(id),
+          `${name} runs ${move} in ${(share * 100).toFixed(1)}% of sets but the loader says it cannot learn it`,
+        ).toBe(true);
+      }
+    }
+  });
+});
+```
+
+Run it and typecheck:
 
 ```powershell
-git add sync/smogon/fixtures/chaos-sample.json sync/smogon/chaos.real-sample.test.ts
+npx vitest run --config vitest.integration.config.ts sync/data-agreement.integration.test.ts
+npm run typecheck
+```
+
+Expected: PASS. A failure means the loader's learnset traversal or the package data disagrees with the real ladder; report which species and move, do not loosen the 1% threshold to get a pass.
+
+- [ ] **Step 5: Commit**
+
+```powershell
+git add sync/smogon/fixtures/chaos-sample.json sync/smogon/chaos.real-sample.test.ts sync/data-agreement.integration.test.ts
 git commit -m "test(sync): lock Smogon chaos semantics against a real data sample" -m "Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ```
 
