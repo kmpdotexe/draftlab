@@ -13,7 +13,8 @@
 ## Global Constraints
 
 - One TypeScript repository; dependencies point one way: `app → engine → domain`, and `sync → domain`. The engine never imports from `app`. (This plan builds only `domain` and `sync`.)
-- Everything is keyed by a format id such as `gen9championsvgc2026regmc`; adding a regulation is a config change, not a code change.
+- Everything is keyed by a format id such as `gen9championsvgc2026regmb`; adding a regulation is a config change, not a code change.
+- **Known limitation (found by the Task 5 probe, 2026-09-20):** the released `pokemon-showdown` 0.11.11 (published 2026-07-28) predates Reg M-C; it contains only Reg M-A (mod `championsregma`) and Reg M-B (mod `champions`). This plan therefore ships Reg M-B only. The usage-fallback machinery (Tasks 6 and 7) is still built and unit-tested so that adding M-C later is a config change once a package release includes it (or the package is pinned to a `smogon/pokemon-showdown` commit and built with `node build`; that needs its own decision).
 - Default rating cutoff is 1630, configurable per format.
 - The app never fetches Smogon directly; it reads only the snapshot.
 - Sync fails loudly and keeps the last good snapshot. Snapshot files are written only after in-memory validation passes.
@@ -1095,7 +1096,7 @@ const dex = Dex.mod('champions');
 console.log('incineroar exists:', dex.species.get('incineroar').exists, '| isNonstandard:', dex.species.get('incineroar').isNonstandard);
 console.log('bulbasaur isNonstandard:', dex.species.get('bulbasaur').isNonstandard);
 
-const format = Dex.formats.get('gen9championsvgc2026regmc');
+const format = Dex.formats.get('gen9championsvgc2026regmb');
 console.log('format exists:', format.exists, '| mod:', format.mod, '| ruleset:', format.ruleset);
 const table = dex.formats.getRuleTable(format);
 console.log('ruleTable:', {
@@ -1115,7 +1116,7 @@ node scripts/probe-showdown.cjs
 ```
 
 Expected output (values may differ slightly, but each of these must hold):
-- A line for `gen9championsvgc2026regmc` and one for `gen9championsvgc2026regmb`, with `mod=champions` and `mod=championsregmb`.
+- A line for `gen9championsvgc2026regmb` with `mod=champions` (a first probe on 2026-09-20 showed the released package has no `regmc` format, and Reg M-A uses `mod=championsregma`; those are expected).
 - `incineroar exists: true` and a falsy `isNonstandard` (null, undefined, or empty).
 - `bulbasaur isNonstandard: Past`.
 - `format exists: true`, and a `ruleset` containing `Flat Rules`.
@@ -1123,7 +1124,7 @@ Expected output (values may differ slightly, but each of these must hold):
 - `mewtwo banned: true` and `mew banned: true` (or, if a species is excluded by being non-standard rather than banned, `false`; the loader excludes on either condition, so either result is acceptable).
 - A non-empty learnset sample.
 
-**If the M-C format line is missing, or `Dex.mod` / `getRuleTable` / `isBannedSpecies` does not exist as used here: stop and report to the human. Do not improvise.** The known options are to pin the package to a GitHub commit of `smogon/pokemon-showdown` that has Reg M-C (requires a local build step), or to ship only Reg M-B until a new package release. That is the human's call.
+**If the Reg M-B format line is missing, or `Dex.mod` / `getRuleTable` / `isBannedSpecies` does not exist as used here: stop and report. Do not improvise.** (Reg M-C is known to be absent from this package release; see Global Constraints. That alone is not a reason to stop.)
 
 - [ ] **Step 2: Write the failing integration test**
 
@@ -1133,7 +1134,7 @@ Expected output (values may differ slightly, but each of these must hold):
 import { beforeAll, describe, expect, it } from 'vitest';
 import { loadShowdownFormat, type ShowdownFormatData } from './source';
 
-describe.each(['gen9championsvgc2026regmc', 'gen9championsvgc2026regmb'])(
+describe.each(['gen9championsvgc2026regmb'])(
   'loadShowdownFormat(%s) against the real pokemon-showdown package',
   (formatId) => {
     let data: ShowdownFormatData;
@@ -1415,7 +1416,7 @@ git commit -m "feat(sync): load legal Champions species, moves, learnsets and ru
 
 ```ts
 export interface FormatConfig {
-  /** Showdown format id, e.g. "gen9championsvgc2026regmc". Also the data directory name. */
+  /** Showdown format id, e.g. "gen9championsvgc2026regmb". Also the data directory name. */
   id: string;
   label: string;
   /** Smogon stats format ids in priority order; the first with published stats wins. */
@@ -1424,14 +1425,12 @@ export interface FormatConfig {
   cutoff: number;
 }
 
+// Only formats the installed pokemon-showdown release knows about can be listed here.
+// Reg M-C is not in 0.11.11; when a release (or pinned build) has it, add:
+//   { id: 'gen9championsvgc2026regmc', label: 'Champions VGC 2026 Reg M-C',
+//     statsFormatIds: ['gen9championsvgc2026regmc', 'gen9championsvgc2026regmb'], cutoff: 1630 }
+// (the first-choice stats id has no published stats yet, so usage falls back to Reg M-B).
 export const FORMATS: FormatConfig[] = [
-  {
-    id: 'gen9championsvgc2026regmc',
-    label: 'Champions VGC 2026 Reg M-C',
-    // Reg M-C has no published stats yet; fall back to Reg M-B until it does.
-    statsFormatIds: ['gen9championsvgc2026regmc', 'gen9championsvgc2026regmb'],
-    cutoff: 1630,
-  },
   {
     id: 'gen9championsvgc2026regmb',
     label: 'Champions VGC 2026 Reg M-B',
@@ -1773,7 +1772,7 @@ git commit -m "feat(sync): build, validate and write per-format snapshots" -m "C
 **Files:**
 - Create: `sync/run.ts`, `sync/index.ts`
 - Test: `sync/run.test.ts`
-- Generated: `data/gen9championsvgc2026regmc/*`, `data/gen9championsvgc2026regmb/*`
+- Generated: `data/gen9championsvgc2026regmb/*`
 
 **Interfaces:**
 - Consumes: `FormatConfig` (Task 6); `buildSnapshot`, `writeSnapshot`, `Limits` (Task 6); `ChaosSource`, `fetchLatestChaos` (Task 4); `ShowdownFormatData`, `loadShowdownFormat` (Task 5).
@@ -2031,18 +2030,16 @@ npm run sync
 Expected output (the month may be newer than 2026-08 if run later):
 
 ```
-OK   gen9championsvgc2026regmc -> ...\data\gen9championsvgc2026regmc
-     warning: Dropped usage for N species not legal in gen9championsvgc2026regmc: ...   (only if any)
-     warning: Usage comes from gen9championsvgc2026regmb (2026-08) because gen9championsvgc2026regmc has no published stats yet.
 OK   gen9championsvgc2026regmb -> ...\data\gen9championsvgc2026regmb
+     warning: Dropped usage for N species not legal in gen9championsvgc2026regmb: ...   (only if any)
 ```
 
-If Reg M-C stats have been published by the time this runs, the "Usage comes from" warning is absent and `isFallback` is `false`; that is correct. If either format prints `FAIL`, read the message; do not work around a validation failure by loosening `DEFAULT_LIMITS` without understanding why it tripped.
+`isFallback` is `false` here, so there is no "Usage comes from" warning. If the format prints `FAIL`, read the message; do not work around a validation failure by loosening `DEFAULT_LIMITS` without understanding why it tripped.
 
 - [ ] **Step 8: Check the output**
 
 ```powershell
-Get-Content data/gen9championsvgc2026regmc/meta.json
+Get-Content data/gen9championsvgc2026regmb/meta.json
 Get-ChildItem data -Recurse -File | Select-Object FullName, @{n='MB';e={[math]::Round($_.Length/1MB,2)}}
 ```
 
