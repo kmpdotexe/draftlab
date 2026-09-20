@@ -39,6 +39,13 @@ describe.each(['gen9championsvgc2026regmb'])(
       }
     });
 
+    it('gives battle-only formes the learnset of the form they change from, not their base species', () => {
+      // Mega Floette (baseSpecies Floette, changesFrom Floette-Eternal) runs Light of Ruin in 58.1% of real
+      // Smogon gen9championsvgc2026regmb-1630 sets (2026-08). Floette itself is non-standard here, so
+      // inheriting from baseSpecies loses the move.
+      expect(data.learnsets.floettemega).toContain('lightofruin');
+    });
+
     it('has a learnset for every legal species, and every learnset move is in the moves table', () => {
       for (const id of Object.keys(data.species)) {
         expect(data.learnsets[id], `learnset for ${id}`).toBeDefined();

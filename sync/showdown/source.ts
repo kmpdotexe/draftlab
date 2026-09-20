@@ -19,6 +19,9 @@ interface SdSpecies {
   forme: string;
   requiredItem?: string;
   prevo: string;
+  /** Set on battle-only formes (e.g. megas): the forme they change from. */
+  changesFrom?: string;
+  battleOnly?: string | string[];
 }
 interface SdMove {
   exists: boolean;
@@ -77,7 +80,19 @@ function packageVersion(): string {
   return (JSON.parse(readFileSync(url, 'utf8')) as { version: string }).version;
 }
 
-/** Moves a species can learn, following pre-evolutions and (for formes without their own data) the base species. */
+/** The species a forme without its own learnset takes its moves from, if it is a forme of another species. */
+function inheritsFrom(species: SdSpecies): string | undefined {
+  if (species.changesFrom) return species.changesFrom;
+  const battleOnly = Array.isArray(species.battleOnly) ? species.battleOnly[0] : species.battleOnly;
+  if (battleOnly) return battleOnly;
+  return species.baseSpecies !== species.name ? species.baseSpecies : undefined;
+}
+
+/**
+ * Moves a species can learn, following pre-evolutions and, for formes without their own learnset data,
+ * the species they are a battle-only forme of. That is `changesFrom`/`battleOnly`, not `baseSpecies`:
+ * Mega Floette must use Floette-Eternal's moves, but its base species Floette is non-standard here.
+ */
 function learnsetOf(dex: SdDex, start: SdSpecies): Set<ID> {
   const moves = new Set<ID>();
   const seen = new Set<string>();
@@ -88,8 +103,9 @@ function learnsetOf(dex: SdDex, start: SdSpecies): Set<ID> {
     for (const [moveId, sources] of Object.entries(data.learnset ?? {})) {
       if (sources.length > 0) moves.add(moveId);
     }
-    if (!data.learnset && current.baseSpecies !== current.name) {
-      current = dex.species.get(current.baseSpecies);
+    const formeSource = data.learnset ? undefined : inheritsFrom(current);
+    if (formeSource) {
+      current = dex.species.get(formeSource);
     } else {
       current = current.prevo ? dex.species.get(current.prevo) : undefined;
     }
