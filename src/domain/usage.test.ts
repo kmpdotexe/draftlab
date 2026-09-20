@@ -45,8 +45,8 @@ describe('teammateLift', () => {
   it('uses the given species weight and the candidate usage, so swapping them changes the denominator', () => {
     // forward:  14648 / (79678 * 0.2684631) ≈ 0.685
     // backward: 14648 / (52277 * 0.4074192) ≈ 0.688
-    expect(teammateLift(usage, 'kingambit', 'incineroar')).toBeCloseTo(0.685, 2);
-    expect(teammateLift(usage, 'incineroar', 'kingambit')).toBeCloseTo(0.688, 2);
+    expect(teammateLift(usage, 'kingambit', 'incineroar')).toBeCloseTo(0.685, 3);
+    expect(teammateLift(usage, 'incineroar', 'kingambit')).toBeCloseTo(0.688, 3);
   });
 
   it('returns null, not 0, when the pair was not observed among stored teammates', () => {
