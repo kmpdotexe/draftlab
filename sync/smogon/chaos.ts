@@ -37,6 +37,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+const COUNT_TABLES = ['Abilities', 'Items', 'Moves', 'Spreads', 'Teammates'] as const;
+
 function assertChaosShape(json: unknown): asserts json is RawChaos {
   if (!isRecord(json) || !isRecord(json.info) || !isRecord(json.data)) {
     throw new Error('Smogon chaos file: expected top-level "info" and "data" objects');
@@ -53,16 +55,23 @@ function assertChaosShape(json: unknown): asserts json is RawChaos {
   if (names.length === 0) throw new Error('Smogon chaos file: "data" is empty');
   for (const name of names) {
     const mon = json.data[name];
-    if (
-      !isRecord(mon) ||
-      typeof mon.usage !== 'number' ||
-      !isRecord(mon.Abilities) ||
-      !isRecord(mon.Items) ||
-      !isRecord(mon.Moves) ||
-      !isRecord(mon.Spreads) ||
-      !isRecord(mon.Teammates)
-    ) {
-      throw new Error(`Smogon chaos file: malformed entry for "${name}"`);
+    if (!isRecord(mon)) throw new Error(`Smogon chaos file: malformed entry for "${name}"`);
+    if (!Number.isFinite(mon.usage)) {
+      throw new Error(`Smogon chaos file: malformed entry for "${name}": usage is not a finite number`);
+    }
+    // Every count must be a real number: sumValues would otherwise concatenate strings or count null as 0.
+    for (const table of COUNT_TABLES) {
+      const counts = mon[table];
+      if (!isRecord(counts)) {
+        throw new Error(`Smogon chaos file: malformed entry for "${name}": ${table} is not an object`);
+      }
+      for (const [key, value] of Object.entries(counts)) {
+        if (!Number.isFinite(value)) {
+          throw new Error(
+            `Smogon chaos file: malformed entry for "${name}": ${table}[${JSON.stringify(key)}] is not a finite number`,
+          );
+        }
+      }
     }
   }
 }

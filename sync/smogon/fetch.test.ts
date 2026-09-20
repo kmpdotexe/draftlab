@@ -88,6 +88,14 @@ describe('fetchLatestChaos', () => {
     await expect(fetchLatestChaos('x', 1630, fetcher)).rejects.toThrow(/HTTP 500/);
   });
 
+  it('throws, naming the index URL, when the stats index lists no months at all', async () => {
+    // A changed page layout must fail the sync, not look like "no stats published yet".
+    const fetcher = fakeFetcher({ [`${ROOT}/`]: { body: indexHtml(['readme.txt', 'news/']) } });
+    await expect(fetchLatestChaos('gen9championsvgc2026regmb', 1630, fetcher)).rejects.toThrow(
+      new RegExp(`${ROOT}/.*format may have changed`),
+    );
+  });
+
   it('throws when the file download fails after it was listed', async () => {
     const fetcher = fakeFetcher({
       [`${ROOT}/`]: { body: indexHtml(['2026-08/']) },

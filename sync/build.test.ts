@@ -7,7 +7,7 @@ import type { FormatConfig } from './formats.config';
 import type { RawChaos, RawChaosMon } from './smogon/chaos';
 import type { ChaosSource } from './smogon/fetch';
 import type { ShowdownFormatData } from './showdown/source';
-import type { MoveEntry, SpeciesEntry } from '../src/domain/types';
+import type { MoveEntry, Snapshot, SpeciesEntry, UsageData, UsageEntry } from '../src/domain/types';
 
 const config: FormatConfig = { id: 'fmt', label: 'Fmt', statsFormatIds: ['statsA', 'statsB'], cutoff: 1630 };
 const limits = { minSpecies: 2, minMoves: 1 };
@@ -104,6 +104,17 @@ describe('buildSnapshot', () => {
     expect(() => buildSnapshot({ config, showdown, chaos: null, now, limits })).toThrow(/unknown move "ghostmove"/);
   });
 
+  it('refuses to build when usage exists but none of its species are legal in the format', () => {
+    const raw: RawChaos = {
+      info: { metagame: 'statsA', cutoff: 1630, 'number of battles': 1000 },
+      data: { Mewtwo: mon({ usage: 0.5, Abilities: { pressure: 100 } }), Mew: mon({ usage: 0.4, Abilities: { synchronize: 90 } }) },
+    };
+    const chaos: ChaosSource = { ...chaosSource('statsA'), text: JSON.stringify(raw) };
+    expect(() => buildSnapshot({ config, showdown: showdownData(), chaos, now, limits })).toThrow(
+      'Usage from statsA (2026-08) has no species legal in fmt',
+    );
+  });
+
   it('refuses to build when there are too few species', () => {
     expect(() =>
       buildSnapshot({ config, showdown: showdownData(), chaos: null, now, limits: { minSpecies: 5, minMoves: 1 } }),
@@ -118,6 +129,38 @@ describe('validateSnapshot', () => {
     const { snapshot } = buildSnapshot({ config, showdown: showdownData(), chaos: null, now, limits });
     const broken = { ...snapshot, learnsets: { ...snapshot.learnsets, kingambit: showdown.learnsets.kingambit } };
     expect(() => validateSnapshot(broken, limits)).toThrow(/and 30 more/);
+  });
+
+  function validSnapshot(): Snapshot {
+    return buildSnapshot({ config, showdown: showdownData(), chaos: chaosSource('statsA'), now, limits }).snapshot;
+  }
+
+  function corruptKingambit(snapshot: Snapshot, patch: Partial<UsageEntry>): Snapshot {
+    const usage = snapshot.usage as UsageData;
+    return { ...snapshot, usage: { ...usage, species: { ...usage.species, kingambit: { ...usage.species.kingambit, ...patch } } } };
+  }
+
+  it('accepts a valid snapshot with usage', () => {
+    expect(() => validateSnapshot(validSnapshot(), limits)).not.toThrow();
+  });
+
+  it('rejects a usage teammate that is not in the species table', () => {
+    const broken = corruptKingambit(validSnapshot(), { teammates: [['ghostmon', 12]] });
+    expect(() => validateSnapshot(broken, limits)).toThrow(/kingambit.*teammate "ghostmon"/);
+  });
+
+  it('rejects a usage weight that is not a finite number above 0', () => {
+    for (const weight of [0, -1, Number.NaN, Number.POSITIVE_INFINITY, '0100200' as never]) {
+      const broken = corruptKingambit(validSnapshot(), { weight });
+      expect(() => validateSnapshot(broken, limits), String(weight)).toThrow(/kingambit.*weight/);
+    }
+  });
+
+  it('rejects a usage share that is not a finite number above 0', () => {
+    for (const usage of [0, -0.1, Number.NaN, Number.POSITIVE_INFINITY]) {
+      const broken = corruptKingambit(validSnapshot(), { usage });
+      expect(() => validateSnapshot(broken, limits), String(usage)).toThrow(/kingambit.*usage/);
+    }
   });
 });
 

@@ -53,8 +53,14 @@ export async function fetchLatestChaos(
   fetcher: Fetcher = fetch as unknown as Fetcher,
   maxMonthsBack = 6,
 ): Promise<ChaosSource | null> {
-  const index = await getText(fetcher, `${STATS_ROOT}/`);
-  const months = listMonths(index).reverse().slice(0, maxMonthsBack);
+  const indexUrl = `${STATS_ROOT}/`;
+  const index = await getText(fetcher, indexUrl);
+  const allMonths = listMonths(index);
+  if (allMonths.length === 0) {
+    // Not "no stats yet": the index always lists months, so an empty result means the page format changed.
+    throw new Error(`Smogon stats: ${indexUrl} lists no YYYY-MM/ months; the page format may have changed`);
+  }
+  const months = allMonths.reverse().slice(0, maxMonthsBack);
   const file = `${statsFormatId}-${cutoff}.json.gz`;
 
   for (const month of months) {

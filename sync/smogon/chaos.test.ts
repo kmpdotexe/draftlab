@@ -65,6 +65,35 @@ describe('parseChaos', () => {
     const broken = { info: fixture.info, data: { Kingambit: { usage: 'lots' } } };
     expect(() => parseChaos(JSON.stringify(broken))).toThrow(/"Kingambit"/);
   });
+
+  // pruneChaos sums the Abilities values; a non-number there would concatenate (strings) or vanish (null)
+  // instead of failing, so every count in every table must be a finite number.
+  it('rejects a string count, naming the species and table', () => {
+    const broken = chaos({ Kingambit: mon({ Abilities: { defiant: '100', pressure: '200' } as never }) });
+    expect(() => parseChaos(JSON.stringify(broken))).toThrow(
+      /malformed entry for "Kingambit": Abilities\["defiant"\] is not a finite number/,
+    );
+  });
+
+  it('rejects a null count, naming the species and table', () => {
+    const broken = chaos({ Kingambit: mon({ Items: { chopleberry: null } as never }) });
+    expect(() => parseChaos(JSON.stringify(broken))).toThrow(
+      /malformed entry for "Kingambit": Items\["chopleberry"\] is not a finite number/,
+    );
+  });
+
+  it('rejects a non-finite usage, naming the species', () => {
+    // JSON.stringify turns NaN and Infinity into null, so build the text by hand.
+    const text = JSON.stringify(chaos({ Kingambit: mon() })).replace('"usage":0.1', '"usage":null');
+    expect(() => parseChaos(text)).toThrow(/malformed entry for "Kingambit": usage is not a finite number/);
+  });
+
+  it('checks every table, not just Abilities', () => {
+    for (const table of ['Moves', 'Spreads', 'Teammates'] as const) {
+      const broken = chaos({ Kingambit: mon({ [table]: { x: 'nope' } as never }) });
+      expect(() => parseChaos(JSON.stringify(broken)), table).toThrow(new RegExp(`${table}\\["x"\\]`));
+    }
+  });
 });
 
 describe('parseSpread', () => {

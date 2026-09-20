@@ -42,8 +42,19 @@ export function validateSnapshot(snapshot: Snapshot, limits: Limits = DEFAULT_LI
   }
   if (snapshot.usage) {
     if (!(snapshot.usage.teams > 0)) problems.push('usage.teams must be a positive number');
-    for (const id of Object.keys(snapshot.usage.species)) {
+    for (const [id, entry] of Object.entries(snapshot.usage.species)) {
       if (!snapshot.species[id]) problems.push(`usage mentions unknown species "${id}"`);
+      for (const [teammateId] of entry.teammates) {
+        if (!snapshot.species[teammateId]) {
+          problems.push(`usage of "${id}" lists teammate "${teammateId}" which is not a known species`);
+        }
+      }
+      if (!(Number.isFinite(entry.weight) && entry.weight > 0)) {
+        problems.push(`usage of "${id}" has weight ${String(entry.weight)} (must be a finite number above 0)`);
+      }
+      if (!(Number.isFinite(entry.usage) && entry.usage > 0)) {
+        problems.push(`usage of "${id}" has usage ${String(entry.usage)} (must be a finite number above 0)`);
+      }
     }
   }
 
@@ -73,6 +84,9 @@ export function buildSnapshot({ config, showdown, chaos, now, limits = DEFAULT_L
         continue;
       }
       species[id] = { ...entry, teammates: entry.teammates.filter(([other]) => showdown.species[other]) };
+    }
+    if (Object.keys(species).length === 0) {
+      throw new Error(`Usage from ${chaos.statsFormatId} (${chaos.month}) has no species legal in ${config.id}`);
     }
     usage = { ...pruned, species };
 
