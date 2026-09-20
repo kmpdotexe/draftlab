@@ -152,12 +152,13 @@ export default defineConfig({
 });
 ```
 
-`.gitignore`:
+`.gitignore` (already exists from repo setup; make sure it contains exactly these lines):
 
 ```
 node_modules/
 dist/
 *.tmp
+.superpowers/
 ```
 
 - [ ] **Step 2: Install dependencies**
@@ -761,13 +762,11 @@ describe('teammateLift', () => {
     expect(teammateLift(usage, 'kingambit', 'incineroar')).toBeCloseTo(0.685, 2);
   });
 
-  it('is not symmetric in given and candidate (it conditions on the given species)', () => {
-    const forward = teammateLift(usage, 'kingambit', 'incineroar');
-    const backward = teammateLift(usage, 'incineroar', 'kingambit');
-    expect(forward).not.toBeNull();
-    expect(backward).not.toBeNull();
-    // 14648 / (52277 * 0.4074192) ≈ 0.688
-    expect(backward).toBeCloseTo(0.688, 2);
+  it('uses the given species weight and the candidate usage, so swapping them changes the denominator', () => {
+    // forward:  14648 / (79678 * 0.2684631) ≈ 0.685
+    // backward: 14648 / (52277 * 0.4074192) ≈ 0.688
+    expect(teammateLift(usage, 'kingambit', 'incineroar')).toBeCloseTo(0.685, 2);
+    expect(teammateLift(usage, 'incineroar', 'kingambit')).toBeCloseTo(0.688, 2);
   });
 
   it('returns null, not 0, when the pair was not observed among stored teammates', () => {
@@ -2082,6 +2081,147 @@ git commit -m "feat(sync): add sync orchestration, CLI and first generated snaps
 
 ---
 
+### Task 8: Real-data chaos sample (added to satisfy the spec's fixture-testing requirement)
+
+The spec's Testing section requires sync parser tests against saved fixture files from the real sources. Task 2's fixtures are hand-built imitations, so this task saves a trimmed real Smogon sample and locks the verified data semantics in a test. Your task ends before the "## Self-Review" heading; ignore any text after it.
+
+**Files:**
+- Create: `sync/smogon/fixtures/chaos-sample.json` (generated, then committed)
+- Create: `scripts/make-chaos-sample.ts` (throwaway; deleted before committing)
+- Test: `sync/smogon/chaos.real-sample.test.ts`
+
+**Interfaces:**
+- Consumes: `fetchLatestChaos` (Task 4), `parseChaos`, `pruneChaos`, `parseSpread`, `DEFAULT_PRUNE` (Task 2), `teammateLift`, `cooccurrence` (Task 3).
+- Produces: nothing later tasks use.
+
+- [ ] **Step 1: Generate the fixture from the live Smogon data**
+
+`scripts/make-chaos-sample.ts`:
+
+```ts
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { parseChaos } from '../sync/smogon/chaos';
+import { fetchLatestChaos } from '../sync/smogon/fetch';
+
+const KEEP = ['Kingambit', 'Incineroar', 'Whimsicott'];
+
+function top(counts: Record<string, number>, n: number): Record<string, number> {
+  return Object.fromEntries(Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, n));
+}
+
+const source = await fetchLatestChaos('gen9championsvgc2026regmb', 1630);
+if (!source) throw new Error('no chaos file found for gen9championsvgc2026regmb at cutoff 1630');
+const raw = parseChaos(source.text);
+
+const data = Object.fromEntries(
+  KEEP.map((name) => {
+    const mon = raw.data[name];
+    if (!mon) throw new Error(`${name} missing from the chaos file`);
+    // Abilities and Teammates stay complete (the semantics tests need them); the bulky tables are trimmed.
+    return [name, { ...mon, Spreads: top(mon.Spreads, 25), Moves: top(mon.Moves, 20), Items: top(mon.Items, 20) }];
+  }),
+);
+
+mkdirSync('sync/smogon/fixtures', { recursive: true });
+writeFileSync('sync/smogon/fixtures/chaos-sample.json', JSON.stringify({ info: raw.info, data }));
+console.log(`sample from ${source.month}: ${source.url}`);
+```
+
+Run it, then delete the script:
+
+```powershell
+npx tsx scripts/make-chaos-sample.ts
+Remove-Item scripts -Recurse
+Get-Item sync/smogon/fixtures/chaos-sample.json | Select-Object Name, Length
+```
+
+Expected: prints `sample from 2026-08: ...` (or a later month); the fixture exists and is well under 200 KB. If it is over 200 KB, lower the three `top(...)` limits and re-run.
+
+- [ ] **Step 2: Write the test**
+
+`sync/smogon/chaos.real-sample.test.ts`:
+
+```ts
+import { readFileSync } from 'node:fs';
+import { describe, expect, it } from 'vitest';
+import { cooccurrence, teammateLift } from '../../src/domain/usage';
+import { DEFAULT_PRUNE, parseChaos, parseSpread, pruneChaos } from './chaos';
+
+// A trimmed real sample of Smogon's gen9championsvgc2026regmb-1630 chaos file.
+// If Smogon changes the file's shape or semantics, these tests fail instead of production.
+const text = readFileSync(new URL('./fixtures/chaos-sample.json', import.meta.url), 'utf8');
+
+describe('real Smogon chaos sample', () => {
+  const raw = parseChaos(text);
+  const sum = (counts: Record<string, number>) => Object.values(counts).reduce((a, b) => a + b, 0);
+
+  it('parses with the expected metagame and cutoff', () => {
+    expect(raw.info.metagame).toBe('gen9championsvgc2026regmb');
+    expect(raw.info.cutoff).toBe(1630);
+    expect(Object.keys(raw.data).sort()).toEqual(['Incineroar', 'Kingambit', 'Whimsicott']);
+  });
+
+  it('has usage as a fraction of teams', () => {
+    for (const mon of Object.values(raw.data)) {
+      expect(mon.usage).toBeGreaterThan(0);
+      expect(mon.usage).toBeLessThan(1);
+    }
+  });
+
+  it('gives the same weighted team count for every species (weight / usage)', () => {
+    const teams = Object.values(raw.data).map((mon) => sum(mon.Abilities) / mon.usage);
+    expect(Math.max(...teams) / Math.min(...teams)).toBeLessThan(1.02);
+  });
+
+  it('reports teammate co-occurrence symmetrically', () => {
+    const a = raw.data.Kingambit.Teammates.Incineroar;
+    const b = raw.data.Incineroar.Teammates.Kingambit;
+    expect(a).toBeGreaterThan(0);
+    expect(Math.abs(a - b) / a).toBeLessThan(1e-6);
+  });
+
+  it('uses nature plus six stat points of at most 32 each, totalling at most 66', () => {
+    for (const mon of Object.values(raw.data)) {
+      for (const key of Object.keys(mon.Spreads)) {
+        const spread = parseSpread(key);
+        expect(spread, `spread key ${key}`).not.toBeNull();
+        expect(spread!.points.every((p) => p >= 0 && p <= 32), key).toBe(true);
+        expect(spread!.points.reduce((a, b) => a + b, 0), key).toBeLessThanOrEqual(66);
+      }
+    }
+  });
+
+  it('prunes into usage data whose co-occurrence and lift are computable', () => {
+    const usage = pruneChaos(raw, { ...DEFAULT_PRUNE, minUsage: 0 });
+    expect(usage.teams).toBeGreaterThan(100_000);
+    expect(cooccurrence(usage, 'kingambit', 'incineroar')).toBeGreaterThan(0);
+    // Bounds rather than an exact value, so the test survives regenerating the sample from a later month.
+    const lift = teammateLift(usage, 'kingambit', 'incineroar');
+    expect(lift).not.toBeNull();
+    expect(lift!).toBeGreaterThan(0.2);
+    expect(lift!).toBeLessThan(3);
+  });
+});
+```
+
+- [ ] **Step 3: Run the test and typecheck**
+
+```powershell
+npx vitest run sync/smogon/chaos.real-sample.test.ts
+npm run typecheck
+```
+
+Expected: all 6 tests PASS; no type errors. A failure here is a finding about the real data, not a reason to loosen the test; report it.
+
+- [ ] **Step 4: Commit**
+
+```powershell
+git add sync/smogon/fixtures/chaos-sample.json sync/smogon/chaos.real-sample.test.ts
+git commit -m "test(sync): lock Smogon chaos semantics against a real data sample" -m "Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+```
+
+---
+
 ## Self-Review (spec coverage)
 
 | Spec requirement | Where |
@@ -2097,7 +2237,7 @@ git commit -m "feat(sync): add sync orchestration, CLI and first generated snaps
 | Snapshot stores `weight`, `usage`, weighted team count | Tasks 1, 2 |
 | Lift formula and "missing pair is no data" | Task 3 |
 | Set model: nature + stat points, no EVs | Task 1 (`Spread`), Task 2 (`parseSpread`); set entry/validation is a later increment |
-| Sync parser fixture tests | Tasks 2, 4 (in-repo fixtures); real-package check in Task 5 |
+| Sync parser fixture tests | Tasks 2, 4 (in-repo fixtures); Task 8 (saved real Smogon sample); real-package check in Task 5 |
 
 Type names used across tasks were checked for consistency: `ID`, `toID`, `Snapshot`, `SnapshotMeta`, `UsageData`, `UsageEntry`, `Spread`, `FormatRules`, `SpeciesEntry`, `MoveEntry`, `ChaosSource`, `ShowdownFormatData`, `FormatConfig`, `Limits`, `BuildInputs`, `SyncDeps`, `parseChaos`, `pruneChaos`, `DEFAULT_PRUNE`, `fetchLatestChaos`, `loadShowdownFormat`, `buildSnapshot`, `validateSnapshot`, `writeSnapshot`, `runSync`, `cooccurrence`, `teammateLift`.
 
