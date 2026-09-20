@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "formatId": "gen9championsvgc2026regmb",
+  "label": "Champions VGC 2026 Reg M-B",
+  "generatedAt": "2026-09-20T22:27:41.351Z",
+  "showdown": {
+    "packageVersion": "0.11.11",
+    "mod": "champions",
+    "formatName": "[Gen 9 Champions] VGC 2026 Reg M-B",
+    "rules": {
+      "ruleset": [
+        "Flat Rules",
+        "VGC Timer",
+        "Open Team Sheets"
+      ],
+      "adjustLevel": 50,
+      "minTeamSize": 6,
+      "pickedTeamSize": 4
+    }
+  },
+  "usage": {
+    "statsFormatId": "gen9championsvgc2026regmb",
+    "month": "2026-08",
+    "cutoff": 1630,
+    "battles": 1269250,
+    "teams": 195185.52136418127,
+    "url": "https://www.smogon.com/stats/2026-08/chaos/gen9championsvgc2026regmb-1630.json.gz",
+    "isFallback": false
+  },
+  "warnings": []
+}
