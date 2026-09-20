@@ -84,4 +84,24 @@ describe('validateSet', () => {
       'set.nature',
     ]);
   });
+
+  it('never throws on malformed set input', () => {
+    expect(validateSet(null as unknown as PokemonSet, 'set')).toEqual([{ path: 'set', message: 'set must be an object' }]);
+    expect(validateSet('invalid' as unknown as PokemonSet, 'set')).toEqual([{ path: 'set', message: 'set must be an object' }]);
+    expect(validateSet([] as unknown as PokemonSet, 'set')).toEqual([{ path: 'set', message: 'set must be an object' }]);
+  });
+
+  it('never throws on malformed points input', () => {
+    expect(paths({ species: 'a', points: null as unknown as StatPoints })).toEqual(['set.points']);
+    expect(paths({ species: 'a', points: 'x' as unknown as StatPoints })).toEqual(['set.points']);
+    expect(paths({ species: 'a', points: [] as unknown as StatPoints })).toEqual(['set.points']);
+  });
+
+  it('never throws on malformed moves input', () => {
+    expect(paths({ species: 'a', moves: 'fakeout' as unknown as string[] })).toEqual(['set.moves']);
+  });
+
+  it('never throws on non-string species', () => {
+    expect(paths({ species: 5 as unknown as string })).toEqual(['set.species']);
+  });
 });
