@@ -88,11 +88,58 @@ describe('defensiveComponent', () => {
     ]);
   });
 
-  it('clamps the score to 0..1 and never throws on odd input', () => {
-    const many = Array.from({ length: 12 }, (_, i) => member(`g${i}`, 'Grass'));
-    const result = defensiveComponent(many, ['Bug', 'Flying']); // x4 weak to Fire/Ice/Rock and stacked exposure
-    expect(result.score).toBeGreaterThanOrEqual(0);
-    expect(result.score).toBeLessThanOrEqual(1);
+  it('lets a resisting member cancel a weak member before deciding whether the roster is exposed', () => {
+    // Dragon is weak to Ice but Fire resists it, and Fire is weak to Water but Dragon resists it, so the summed exposure is 0
+    // for both and Ground's weaknesses to Water, Grass and Ice cost 0.25 each. Rock is the only exposed type (Fire alone is weak
+    // to it, exposure 1) and Ground resists it: relief 1. raw = 1 - 0.75 = 0.25, score = 0.5 + 0.25 / 12.
+    const result = defensiveComponent([member('d1', 'Dragon'), member('f1', 'Fire')], ['Ground']);
+    expect(result.raw).toBe(0.25);
+    expect(result.score).toBeCloseTo(0.5208333, 7);
+    expect(result.reasons).toEqual([{ kind: 'covers-weakness', type: 'Rock', by: 'resists', weakMembers: ['f1'] }]);
+  });
+
+  it('stacks exposure across members, lets an immunity relieve more than a resistance, and orders covered weaknesses by relief', () => {
+    // Two Grass members are weak to Bug, Fire, Flying, Ice, Poison: exposure 2 each. Steel is immune to Poison (relief min(2, 2) = 2)
+    // and resists Bug, Flying, Ice (relief min(2, 1) = 1 each): relief total 2 + 1 + 1 + 1 = 5. Poison sorts before Bug despite the
+    // name order because its relief is bigger; Ice is the fourth covered type and is cut by the cap of 3. Harm: Fire 1 (exposed)
+    // + Fighting 0.25 + Ground 0.25 = 1.5. raw = 5 - 1.5 = 3.5, score = 0.5 + 3.5 / 12.
+    const result = defensiveComponent([member('g1', 'Grass'), member('g2', 'Grass')], ['Steel']);
+    expect(result.raw).toBe(3.5);
+    expect(result.score).toBeCloseTo(0.7916667, 7);
+    expect(result.reasons).toEqual([
+      { kind: 'covers-weakness', type: 'Poison', by: 'immune', weakMembers: ['g1', 'g2'] },
+      { kind: 'covers-weakness', type: 'Bug', by: 'resists', weakMembers: ['g1', 'g2'] },
+      { kind: 'covers-weakness', type: 'Flying', by: 'resists', weakMembers: ['g1', 'g2'] },
+      { kind: 'adds-weakness', type: 'Fire', weakMembers: ['g1', 'g2'] },
+    ]);
+  });
+
+  it('clamps to 1 when the raw score is far above 6', () => {
+    // Two Dragon/Grass members are exposed (summed severity) to Bug, Dragon, Fairy, Flying, Ice, Poison. Fire/Steel resists or is
+    // immune to all six, and the relief is capped by its own severity: Bug 2, Dragon 1, Fairy 2, Flying 1, Ice 2, Poison 2 = 10.
+    // Its weaknesses (Fighting, Ground, Water) are all unexposed, so they cost 0.25 per severity point: 0.25 + 0.5 + 0.25 = 1.
+    // raw = 10 - 1 = 9, score = 0.5 + 9 / 12 = 1.25 unclamped, so exactly 1.
+    const result = defensiveComponent([member('g1', 'Dragon', 'Grass'), member('g2', 'Dragon', 'Grass')], ['Fire', 'Steel']);
+    expect(result.raw).toBe(9);
+    expect(result.score).toBe(1);
+  });
+
+  it('clamps to 0 when the raw score is far below -6, and lists at most 2 added weaknesses, the biggest first', () => {
+    // Two Grass members are exposed to Bug, Fire, Flying, Ice, Poison. A Bug/Grass candidate is x4 weak to Fire and Flying (harm 2
+    // each) and x2 weak to Bug, Ice, Poison (harm 1 each), and also weak to Rock, which the roster is not exposed to (0.25).
+    // Harm Fire 2 + Flying 2 + Bug 1 + Ice 1 + Poison 1 = 7, plus 0.25 = 7.25. Nothing is covered: raw = -7.25,
+    // score = 0.5 - 7.25 / 12 = -0.104 unclamped, so exactly 0. Fire and Flying tie on harm and are ordered by type name;
+    // Bug, Ice and Poison are cut by the cap of 2.
+    const result = defensiveComponent([member('g1', 'Grass'), member('g2', 'Grass')], ['Bug', 'Grass']);
+    expect(result.raw).toBe(-7.25);
+    expect(result.score).toBe(0);
+    expect(result.reasons).toEqual([
+      { kind: 'adds-weakness', type: 'Fire', weakMembers: ['g1', 'g2'] },
+      { kind: 'adds-weakness', type: 'Flying', weakMembers: ['g1', 'g2'] },
+    ]);
+  });
+
+  it('never throws on odd input', () => {
     expect(defensiveComponent([], ['Steel']).raw).toBe(-0.75); // no roster: nothing to relieve, all harm at 0.25
     expect(defensiveComponent([member('x', 'Stellar')], ['Stellar']).raw).toBe(0);
   });
@@ -196,7 +243,28 @@ describe('typeSignal', () => {
     expect(result.reasons.some((reason) => reason.kind === 'adds-coverage')).toBe(false);
   });
 
-  it('uses real move types for the offensive component', () => {
+  it('uses the move types from usage data, not just the own types', () => {
+    // Defensive is the same either way: the Fire roster is exposed to Ground, Rock, Water (1 each); Grass resists Ground and Water
+    // (relief 1 + 1) and is weak to Bug, Fire, Flying, Ice, Poison, none of which the roster is exposed to (harm 5 x 0.25 = 1.25).
+    // raw = 2 - 1.25 = 0.75, defensive = 0.5 + 0.75 / 12 = 0.5625.
+    // With Surf in the usage data the Fire roster also hits Fire, Ground, Rock: offensive is 1 / 11 (Grass adds Water only), so
+    // 0.6 x 0.5625 + 0.4 x 1 / 11 = 0.3738636. Without it, offensive is 3 / 14 (Grass hits Ground, Rock, Water):
+    // 0.6 x 0.5625 + 0.4 x 3 / 14 = 0.4232143.
+    const moves = { surf: typedMove('surf', 'Water', 'Special', 90) };
+    const usage = usageData([usageEntry('fire', { moves: [['surf', 0.6]] })]);
+    const withSurf = typeSignal(['fire'], 'grass', snap({ fire: ['Fire'], grass: ['Grass'] }, usage, moves));
+    expect(withSurf.score).toBeCloseTo(0.3738636, 7);
+    expect(withSurf.reasons).toEqual([
+      { kind: 'covers-weakness', type: 'Ground', by: 'resists', weakMembers: ['fire'] },
+      { kind: 'covers-weakness', type: 'Water', by: 'resists', weakMembers: ['fire'] },
+      { kind: 'adds-coverage', types: ['Water'] },
+    ]);
+    const withoutSurf = typeSignal(['fire'], 'grass', snap({ fire: ['Fire'], grass: ['Grass'] }));
+    expect(withoutSurf.score).toBeCloseTo(0.4232143, 7);
+    expect(withoutSurf.reasons.at(-1)).toEqual({ kind: 'adds-coverage', types: ['Ground', 'Rock', 'Water'] });
+  });
+
+  it('feeds the attacking types of both species into the offensive component (components only, not typeSignal)', () => {
     const moves = { surf: typedMove('surf', 'Water', 'Special', 90) };
     const usage = usageData([usageEntry('fire', { moves: [['surf', 0.6]] })]);
     const s = snap({ fire: ['Fire'], grass: ['Grass'] }, usage, moves);
