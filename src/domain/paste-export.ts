@@ -29,7 +29,7 @@ function evsLine(points: unknown): string {
  * fall back to the id as written. Never rewrites a set. Returns '' for something that is not a usable set.
  *
  * Round trip through `parsePaste` has two exceptions: all-zero points come back with no `points`, and a base
- * species holding a stone that a legal form of the same base species requires (Staraptor with Staraptite) comes
+ * species holding a stone that exactly one legal form of the same base species requires (Staraptor with Staraptite) comes
  * back as that Mega form, with a note.
  */
 export function exportSet(set: PokemonSet, snapshot: SetSnapshot): string {

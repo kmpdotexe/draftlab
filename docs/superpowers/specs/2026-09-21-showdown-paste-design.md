@@ -118,7 +118,7 @@ Jolly Nature
 
 ## Round trip
 
-For every set that is valid in the snapshot, `parsePaste(exportSet(set, snapshot), snapshot)[0].set` equals `set`, and its `problems` and `notes` are empty. There are two exceptions. A set whose `points` are all zero writes no `EVs:` line and comes back with no `points`. A valid set of a base species holding a stone that some legal form of the same base species requires (for example `{ species: 'staraptor', item: 'staraptite' }`) exports as `Staraptor @ Staraptite` and re-imports as that Mega form (`staraptormega`) with the note `read "Staraptor" holding Staraptite as Staraptor-Mega`; it is a set the user could equally have written as the Mega form, and each form is its own pick. Both are documented in the export and import doc comments and pinned by tests.
+For every set that is valid in the snapshot, `parsePaste(exportSet(set, snapshot), snapshot)[0].set` equals `set`, and its `problems` and `notes` are empty. There are two exceptions. A set whose `points` are all zero writes no `EVs:` line and comes back with no `points`. A valid set of a base species holding a stone that exactly one legal form of the same base species requires (for example `{ species: 'staraptor', item: 'staraptite' }`) exports as `Staraptor @ Staraptite` and re-imports as that Mega form (`staraptormega`) with the note `read "Staraptor" holding Staraptite as Staraptor-Mega`; it is a set the user could equally have written as the Mega form, and each form is its own pick. Both are documented in the export and import doc comments and pinned by tests.
 
 ## Testing
 
