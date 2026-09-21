@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { deriveDraft, drafterAt } from './derive';
-import { leagueOf, snapshotOf } from './test-support';
+import { SPECIES_IDS, leagueOf, snapshotOf } from './test-support';
 
 const sequence = (league: ReturnType<typeof leagueOf>) => {
   const total = league.drafters.length * league.rounds;
@@ -55,8 +55,15 @@ describe('deriveDraft', () => {
   });
 
   it('breaks price ties by id', () => {
-    const state = deriveDraft(leagueOf({ prices: { b: 5, a: 5 } }), [], snapshotOf());
+    const state = deriveDraft(leagueOf({ prices: { b: 5, a: 5 } }), [], snapshotOf(['b', 'a']));
     expect(state.pool).toEqual(['a', 'b']);
+  });
+
+  it('counts a picked species whose id is an inherited object property as costing 0', () => {
+    const state = deriveDraft(league, ['constructor'], snapshotOf(['constructor', ...SPECIES_IDS]));
+    expect(state.picks[0].price).toBe(0);
+    expect(state.drafters[0].spent).toBe(0);
+    expect(state.drafters[0].remaining).toBe(50);
   });
 
   it('derives rosters, budgets, the pool and the clock after some picks', () => {

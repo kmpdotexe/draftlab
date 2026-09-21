@@ -68,7 +68,7 @@ export function deriveDraft(league: LeagueConfig, picks: ID[], snapshot: LegalSp
     throw new RangeError(`${picks.length} picks exceed the ${total} slots in this draft`);
   }
 
-  const priceOf = (id: ID): number => league.prices[id] ?? 0;
+  const priceOf = (id: ID): number => (Object.hasOwn(league.prices, id) ? league.prices[id] : 0);
 
   const records: PickRecord[] = picks.map((species, i) => {
     const { round, drafter } = drafterAt(league, i);
