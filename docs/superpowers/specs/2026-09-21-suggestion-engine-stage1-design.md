@@ -39,7 +39,9 @@ Create: src/engine/typechart.ts      TYPES, effectiveness, multiplier, severity
 Create: src/engine/candidates.ts     contextFor, candidate selection (budget reserve, usage filters, same-dex-number rule)
 Create: src/engine/lift-signal.ts    usageLift
 Create: src/engine/type-signal.ts    typeSynergy (defensive and offensive)
+Create: src/engine/snapshot-check.ts sanitizeSnapshot: the snapshot as the engine can safely read it
 Create: src/engine/suggest.ts        suggest(): combining, ranking, notes
+Create: src/engine/index.ts          the public surface: contextFor, suggest, the constants and the types
 Create: sync/showdown/typechart.integration.test.ts   oracle against the real package
 Modify: README.md                    one line
 ```
@@ -73,17 +75,19 @@ export type Reason =
   | { kind: 'pairs-often-with'; with: ID; lift: number }
   | { kind: 'pairs-rarely-with'; with: ID; lift: number }
   | { kind: 'lift-coverage'; covered: number; of: number }
-  | { kind: 'covers-weakness'; type: string; by: 'resists' | 'immune'; weakMembers: ID[] }
-  | { kind: 'adds-weakness'; type: string; weakMembers: ID[] }
-  | { kind: 'adds-coverage'; types: string[] }
+  | { kind: 'covers-weakness'; type: TypeName; by: 'resists' | 'immune'; weakMembers: ID[] }
+  | { kind: 'adds-weakness'; type: TypeName; weakMembers: ID[] }
+  | { kind: 'adds-coverage'; types: TypeName[] }
   | { kind: 'low-usage'; usage: number }
   | { kind: 'no-ladder-usage' };
 
 export type Note =
   | { kind: 'invalid-context' }
+  | { kind: 'invalid-snapshot' }
   | { kind: 'roster-full' }
   | { kind: 'empty-roster' }
   | { kind: 'cannot-fill-roster'; poolSize: number; openSlots: number }
+  | { kind: 'no-affordable-candidates' }
   | { kind: 'no-usage-data' }
   | { kind: 'unscored-candidates'; count: number };
 
@@ -101,7 +105,7 @@ export interface Suggestion {
   price: number;
   /** In [0, 1]: the weighted sum of the signals that had data. */
   score: number;
-  /** Always both signals, in the order usageLift, typeSynergy. */
+  /** One entry per signal in `SIGNAL_NAMES` order (index by `signal`, not by position). */
   signals: SignalScore[];
   /** The signals' reasons in that order, then the informational usage reason. */
   reasons: Reason[];
@@ -115,7 +119,7 @@ export interface SuggestResult {
 }
 ```
 
-`contextFor(league: LeagueConfig, draft: DraftState, drafterIndex: number): SuggestContext | null` builds a context from a derived `DraftState`: `roster`, `remaining` and `openSlots` from `draft.drafters[drafterIndex]`, `pool` from `draft.pool`, `prices` from `league.prices`. It returns `null` when `drafterIndex` is not an integer in range.
+`contextFor(league: LeagueConfig, draft: DraftState, drafterIndex: number): SuggestContext | null` builds a context from a derived `DraftState`: `roster`, `remaining` and `openSlots` from `draft.drafters[drafterIndex]`, `pool` from `draft.pool`, `prices` from `league.prices`. `roster`, `pool` and `prices` are copies, so changing the context never changes the draft or the league. It returns `null` when `drafterIndex` is not an integer in range, or when the drafter entry is not an object with a `roster` array.
 
 ## Public function
 
@@ -125,11 +129,12 @@ export function suggest(ctx: SuggestContext, snapshot: Snapshot, options?: Sugge
 
 Steps, in order:
 1. **Validate.** If `ctx` is not an object, `roster` or `pool` is not an array, `prices` is not an object, `remaining` is not a finite number, or `openSlots` is not a non-negative integer, return `{ suggestions: [], considered: 0, notes: [{ kind: 'invalid-context' }] }`.
+   After the context check the snapshot is sanitized (`sanitizeSnapshot`): the `species` and `moves` tables must be objects, otherwise return `{ suggestions: [], considered: 0, notes: [{ kind: 'invalid-snapshot' }] }`; malformed table entries are dropped; a malformed `usage` becomes null, so `no-usage-data` applies. The rest of the function reads only the sanitized view. `invalid-context` wins when both are invalid.
 2. **Roster.** Keep the roster ids that exist in `snapshot.species` (`Object.hasOwn`). If `openSlots` is 0, return no suggestions with `roster-full`. If no roster member remains, return no suggestions with `empty-roster`. (Early returns have `considered: 0`.)
 3. **Candidates** (see below).
 4. **Score** each candidate with both signals; combine.
 5. **Rank** and cut to `limit`.
-6. **Notes**, in the fixed order `invalid-context`, `roster-full`, `empty-roster`, `cannot-fill-roster`, `no-usage-data`, `unscored-candidates`.
+6. **Notes**, in the fixed order `invalid-context`, `invalid-snapshot`, `roster-full`, `empty-roster`, `cannot-fill-roster`, `no-affordable-candidates`, `no-usage-data`, `unscored-candidates`. `no-affordable-candidates` means candidates that pass every rule except the budget existed, but none fits it (no candidates, and at least one species failed only the budget).
 
 ## Candidates (`candidates.ts`)
 
@@ -140,7 +145,7 @@ A pool id is a candidate when all of these hold:
 - it passes the usage filters: `usage = snapshot.usage?.species[id]?.usage ?? 0` (own-property lookup), `usage <= maxUsage` if given, `usage >= minUsage` if given (a non-number or NaN filter is ignored);
 - it is affordable: with `k = openSlots - 1`, `price + reserve <= remaining`, where `reserve` is the sum of the `k` cheapest prices among the OTHER priced pool species. If fewer than `k` others exist, `reserve` is the sum of all of them.
 
-The reserve is computed for all candidates at once from the pool's prices sorted ascending (price, then id), with prefix sums: if the candidate sits among the `k` cheapest positions the reserve is the sum of the cheapest `k + 1` minus its own price, otherwise the sum of the cheapest `k`. Add `cannot-fill-roster` when the number of priced pool species is less than `openSlots`.
+The reserve is computed for all candidates at once from the pool's prices sorted ascending (price, then id), with prefix sums: if the candidate sits among the `k` cheapest positions the reserve is the sum of the cheapest `k + 1` minus its own price, otherwise the sum of the cheapest `k`. Add `cannot-fill-roster` when the number of priced pool species is less than `openSlots`. Selection also counts `overBudget`: the species that pass every other rule and fail only the budget check.
 
 ## Signal: usage lift (`lift-signal.ts`)
 
