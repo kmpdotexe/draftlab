@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parsePaste } from './paste';
 import { exportSet, exportSets, exportTeam } from './paste-export';
 import type { PokemonSet, StatPoints } from './set';
+import type { NatureName } from './natures';
 import type { MatchTeam, RosterSets } from './team';
 import { setSnapshot } from './test-support';
 
@@ -52,6 +53,13 @@ describe('exportSet', () => {
     expect(exportSet({ species: 'incineroar', moves: ['fakeout'] }, snapshot)).toBe(
       lines('Incineroar', 'Level: 50', '- Fake Out'),
     );
+  });
+
+  it('ignores a nature that is not a non-empty string, and never throws on one', () => {
+    const expected = lines('Incineroar', 'Level: 50');
+    for (const nature of [null, '', 5, Object.create(null), Symbol('x')] as unknown[]) {
+      expect(exportSet({ species: 'incineroar', nature: nature as unknown as NatureName }, snapshot)).toBe(expected);
+    }
   });
 
   it('writes no EVs line for absent or all-zero points', () => {

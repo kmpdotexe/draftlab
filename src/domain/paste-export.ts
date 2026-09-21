@@ -43,7 +43,7 @@ export function exportSet(set: PokemonSet, snapshot: SetSnapshot): string {
   out.push('Level: 50');
   const evs = evsLine(set.points);
   if (evs !== '') out.push(`EVs: ${evs}`);
-  if (set.nature !== undefined) out.push(`${set.nature} Nature`);
+  if (typeof set.nature === 'string' && (set.nature as string) !== '') out.push(`${set.nature} Nature`);
   for (const move of Array.isArray(set.moves) ? set.moves : []) {
     if (typeof move === 'string' && move !== '') out.push(`- ${displayName(snapshot.moves, move)}`);
   }
