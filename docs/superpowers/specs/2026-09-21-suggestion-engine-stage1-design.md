@@ -129,7 +129,7 @@ export function suggest(ctx: SuggestContext, snapshot: Snapshot, options?: Sugge
 
 Steps, in order:
 1. **Validate.** If `ctx` is not an object, `roster` or `pool` is not an array, `prices` is not an object, `remaining` is not a finite number, or `openSlots` is not a non-negative integer, return `{ suggestions: [], considered: 0, notes: [{ kind: 'invalid-context' }] }`.
-   After the context check the snapshot is sanitized (`sanitizeSnapshot`): the `species` and `moves` tables must be objects, otherwise return `{ suggestions: [], considered: 0, notes: [{ kind: 'invalid-snapshot' }] }`; malformed table entries are dropped; a malformed `usage` becomes null, so `no-usage-data` applies. The rest of the function reads only the sanitized view. `invalid-context` wins when both are invalid.
+   After the context check the snapshot is sanitized (`sanitizeSnapshot`): the `species` and `moves` tables must be objects, otherwise return `{ suggestions: [], considered: 0, notes: [{ kind: 'invalid-snapshot' }] }`; malformed table entries are dropped, and so are usage entries whose `teammates` or `moves` rows are not `[id, number]` pairs; a malformed `usage` becomes null, so `no-usage-data` applies. The rest of the function reads only the sanitized view. `invalid-context` wins when both are invalid.
 2. **Roster.** Keep the roster ids that exist in `snapshot.species` (`Object.hasOwn`). If `openSlots` is 0, return no suggestions with `roster-full`. If no roster member remains, return no suggestions with `empty-roster`. (Early returns have `considered: 0`.)
 3. **Candidates** (see below).
 4. **Score** each candidate with both signals; combine.

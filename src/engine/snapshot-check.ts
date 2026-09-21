@@ -13,12 +13,25 @@ const isSpeciesEntry = (value: unknown): value is SpeciesEntry =>
 const isMoveEntry = (value: unknown): value is MoveEntry =>
   isRecord(value) && typeof value.type === 'string' && typeof value.category === 'string' && isFiniteNumber(value.basePower);
 
+/**
+ * True when `rows` is an array whose every row is an `[id, number]` pair. A plain loop, not `every`, so a hole in a
+ * sparse array counts as a bad row instead of being skipped.
+ */
+function isPairList(rows: unknown): boolean {
+  if (!Array.isArray(rows)) return false;
+  for (let i = 0; i < rows.length; i++) {
+    const row: unknown = rows[i];
+    if (!Array.isArray(row) || row.length < 2 || typeof row[0] !== 'string' || !isFiniteNumber(row[1])) return false;
+  }
+  return true;
+}
+
 const isUsageEntry = (value: unknown): value is UsageEntry =>
   isRecord(value) &&
   isFiniteNumber(value.usage) &&
   isFiniteNumber(value.weight) &&
-  Array.isArray(value.moves) &&
-  Array.isArray(value.teammates);
+  isPairList(value.moves) &&
+  isPairList(value.teammates);
 
 /** A copy of `table` with only the entries `keep` accepts. Entries are kept by reference. */
 function filterEntries<T>(table: Record<string, unknown>, keep: (value: unknown) => value is T): Record<string, T> {
@@ -30,8 +43,9 @@ function filterEntries<T>(table: Record<string, unknown>, keep: (value: unknown)
  * The part of a snapshot the engine can read safely, or null when the `species` or `moves` table is missing. Entries
  * the engine could not read (a species without a numeric `num` and a `types` array, a move without a string `type`,
  * a string `category` and a numeric `basePower`, a usage entry without numeric `usage` and `weight` and `moves` and
- * `teammates` arrays) are dropped. A `usage` that is not an object with a `species` table becomes null. Never
- * throws and never modifies the input; the result is a new object whose entries are the input's own.
+ * `teammates` arrays whose rows are all `[id, number]` pairs) are dropped. A `usage` that is not an object with a
+ * `species` table becomes null. Never throws on a plain-data (JSON) snapshot (an object with a throwing getter or a
+ * Proxy can still throw) and never modifies the input; the result is a new object whose entries are the input's own.
  */
 export function sanitizeSnapshot(snapshot: unknown): EngineSnapshot | null {
   if (!isRecord(snapshot) || !isRecord(snapshot.species) || !isRecord(snapshot.moves)) return null;

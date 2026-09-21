@@ -63,7 +63,8 @@ function usageReason(snapshot: EngineSnapshot, id: ID): Reason | null {
 
 /**
  * Ranks the pool species that fit the budget by how well they pair with the roster, with typed reasons. Pure and
- * deterministic; never throws. See the stage 1 spec for the candidate rules, the two signals and the notes.
+ * deterministic; never throws on a plain-data (JSON) context and snapshot (an object with a throwing getter or a
+ * Proxy can still throw). See the stage 1 spec for the candidate rules, the two signals and the notes.
  */
 export function suggest(ctx: SuggestContext, snapshot: EngineSnapshot, options: SuggestOptions = {}): SuggestResult {
   const early = (notes: Note[]): SuggestResult => ({ suggestions: [], considered: 0, notes });

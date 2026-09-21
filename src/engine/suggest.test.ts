@@ -343,6 +343,35 @@ describe('suggest: a malformed snapshot', () => {
     expect(result.considered).toBe(4);
   });
 
+  // A row that is not an [id, number] pair used to make the usage lookups throw a TypeError.
+  const badRows: Array<[string, unknown[]]> = [
+    ['[5]', [5]],
+    ['[null]', [null]],
+    ['a sparse array', new Array(1)],
+  ];
+  for (const field of ['teammates', 'moves'] as const) {
+    for (const [label, rows] of badRows) {
+      it(`treats a species whose ${field} is ${label} as having no usage data: roster member`, () => {
+        const s = snapshot();
+        (s.usage!.species as Record<string, unknown>).dra1 = { ...usageEntry('dra1', { weight: 100, usage: 0.5 }), [field]: rows };
+        expect(() => suggest(ctx(), s)).not.toThrow();
+        const result = suggest(ctx(), s);
+        expect(result.considered).toBe(5);
+        expect(result.suggestions.length).toBeGreaterThan(0);
+      });
+
+      it(`treats a species whose ${field} is ${label} as having no usage data: candidate`, () => {
+        const s = snapshot();
+        (s.usage!.species as Record<string, unknown>).stla = { ...usageEntry('stla', { usage: 0.1 }), [field]: rows };
+        expect(() => suggest(ctx(), s)).not.toThrow();
+        const result = suggest(ctx(), s);
+        expect(result.considered).toBe(5);
+        const stla = result.suggestions.find((suggestion) => suggestion.species === 'stla');
+        expect(stla?.signals[0].score).toBeNull();
+      });
+    }
+  }
+
   it('reports invalid-context first when both the context and the snapshot are malformed', () => {
     expect(suggest({ ...ctx(), roster: 'dra1' } as unknown as SuggestContext, asSnapshot(null))).toEqual({
       suggestions: [],

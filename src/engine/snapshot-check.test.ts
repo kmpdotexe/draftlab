@@ -1,5 +1,7 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { moveEntry, speciesEntry } from '../domain/test-support';
+import type { Snapshot } from '../domain/types';
 import { sanitizeSnapshot } from './snapshot-check';
 import { usageData, usageEntry } from './test-support';
 import type { EngineSnapshot } from './types';
@@ -117,6 +119,56 @@ describe('sanitizeSnapshot: usage', () => {
     expect(result?.usage?.teams).toBe(1000);
     expect(result?.usage?.cutoff).toBe(1630);
     expect(result?.usage?.battles).toBe(1000);
+  });
+});
+
+describe('sanitizeSnapshot: usage rows', () => {
+  // Rows that are not `[id, number]` pairs. A sparse array has a hole where the row should be.
+  const badRows: Array<[string, unknown[]]> = [
+    ['a number row', [5]],
+    ['a null row', [null]],
+    ['a one-element row', [['x']]],
+    ['a non-finite share', [['a', 'NaN']]],
+    ['a numeric id', [[1, 2]]],
+    ['a sparse array', new Array(1)],
+    ['a sparse row', [new Array(2)]],
+  ];
+
+  for (const field of ['teammates', 'moves'] as const) {
+    it(`drops a usage entry whose ${field} has a row that is not an [id, number] pair, and keeps a good entry`, () => {
+      for (const [label, rows] of badRows) {
+        const good = usageEntry('good');
+        const result = check({
+          usage: { ...valid().usage, species: { good, bad: { ...usageEntry('bad'), [field]: rows } } },
+        });
+        expect(Object.keys(result?.usage?.species ?? {}), label).toEqual(['good']);
+        expect(result?.usage?.species.good, label).toBe(good);
+      }
+    });
+
+    it(`drops an entry when only one of several ${field} rows is bad`, () => {
+      const rows = field === 'teammates' ? [['b', 20], 5] : [['surf', 0.5], null];
+      const result = check({ usage: { ...valid().usage, species: { bad: { ...usageEntry('bad'), [field]: rows } } } });
+      expect(Object.keys(result?.usage?.species ?? {})).toEqual([]);
+    });
+  }
+
+  it('keeps an entry whose rows are [id, number] pairs, by reference', () => {
+    const entry = usageEntry('ok', { teammates: [['b', 20]], moves: [['surf', 0.5]] });
+    const result = check({ usage: { ...valid().usage, species: { ok: entry } } });
+    expect(result?.usage?.species.ok).toBe(entry);
+  });
+
+  it('keeps every species, move and usage entry of the committed snapshot', () => {
+    const snapshot = JSON.parse(
+      readFileSync(new URL('../../data/gen9championsvgc2026regmb/snapshot.json', import.meta.url), 'utf8'),
+    ) as Snapshot;
+    const result = sanitizeSnapshot(snapshot);
+    const usageCount = Object.keys(snapshot.usage?.species ?? {}).length;
+    expect(usageCount).toBeGreaterThanOrEqual(200);
+    expect(Object.keys(result?.species ?? {}).length).toBe(Object.keys(snapshot.species).length);
+    expect(Object.keys(result?.moves ?? {}).length).toBe(Object.keys(snapshot.moves).length);
+    expect(Object.keys(result?.usage?.species ?? {}).length).toBe(usageCount);
   });
 });
 
