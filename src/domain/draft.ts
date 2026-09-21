@@ -6,7 +6,10 @@ import type { Problem } from './problem';
 /**
  * Why `species` cannot be picked next, or null if it can. The reasons are tested in this order and the
  * first one that applies is returned. A pick that leaves the drafter unable to fill their roster is
- * allowed; it shows up as `cannotFillRoster` in the derived state.
+ * allowed; it shows up as `cannotFillRoster` in the derived state. It derives the whole draft state on
+ * every call (about 0.4 ms on the real Reg M-B snapshot), so a UI that wants to grey out unaffordable
+ * species should derive once and compare each price with `drafters[onTheClock.drafter].remaining` instead
+ * of calling this once per species.
  */
 export function checkPick(
   league: LeagueConfig,
@@ -31,6 +34,7 @@ export function checkPick(
   return null;
 }
 
+/** Appends `species` to `picks` if `checkPick` allows it; never modifies `picks`. */
 export function applyPick(
   league: LeagueConfig,
   picks: ID[],

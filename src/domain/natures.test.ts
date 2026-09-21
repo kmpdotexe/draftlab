@@ -34,6 +34,14 @@ describe('NATURES', () => {
   });
 });
 
+describe('NATURES immutability', () => {
+  it('is frozen, including the neutral and non-neutral entries', () => {
+    expect(Object.isFrozen(NATURES)).toBe(true);
+    expect(Object.isFrozen(NATURES.Hardy)).toBe(true);
+    expect(Object.isFrozen(NATURES.Jolly)).toBe(true);
+  });
+});
+
 describe('isNatureName', () => {
   it('accepts exact nature names only', () => {
     expect(isNatureName('Jolly')).toBe(true);

@@ -14,35 +14,37 @@ export interface Nature {
   minus: NonHpStat | null;
 }
 
-const NEUTRAL: Nature = { plus: null, minus: null };
+const n = (plus: NonHpStat | null, minus: NonHpStat | null): Nature => Object.freeze({ plus, minus });
 
-export const NATURES: Record<NatureName, Nature> = {
-  Adamant: { plus: 'atk', minus: 'spa' },
+const NEUTRAL: Nature = n(null, null);
+
+export const NATURES: Record<NatureName, Nature> = Object.freeze({
+  Adamant: n('atk', 'spa'),
   Bashful: NEUTRAL,
-  Bold: { plus: 'def', minus: 'atk' },
-  Brave: { plus: 'atk', minus: 'spe' },
-  Calm: { plus: 'spd', minus: 'atk' },
-  Careful: { plus: 'spd', minus: 'spa' },
+  Bold: n('def', 'atk'),
+  Brave: n('atk', 'spe'),
+  Calm: n('spd', 'atk'),
+  Careful: n('spd', 'spa'),
   Docile: NEUTRAL,
-  Gentle: { plus: 'spd', minus: 'def' },
+  Gentle: n('spd', 'def'),
   Hardy: NEUTRAL,
-  Hasty: { plus: 'spe', minus: 'def' },
-  Impish: { plus: 'def', minus: 'spa' },
-  Jolly: { plus: 'spe', minus: 'spa' },
-  Lax: { plus: 'def', minus: 'spd' },
-  Lonely: { plus: 'atk', minus: 'def' },
-  Mild: { plus: 'spa', minus: 'def' },
-  Modest: { plus: 'spa', minus: 'atk' },
-  Naive: { plus: 'spe', minus: 'spd' },
-  Naughty: { plus: 'atk', minus: 'spd' },
-  Quiet: { plus: 'spa', minus: 'spe' },
+  Hasty: n('spe', 'def'),
+  Impish: n('def', 'spa'),
+  Jolly: n('spe', 'spa'),
+  Lax: n('def', 'spd'),
+  Lonely: n('atk', 'def'),
+  Mild: n('spa', 'def'),
+  Modest: n('spa', 'atk'),
+  Naive: n('spe', 'spd'),
+  Naughty: n('atk', 'spd'),
+  Quiet: n('spa', 'spe'),
   Quirky: NEUTRAL,
-  Rash: { plus: 'spa', minus: 'spd' },
-  Relaxed: { plus: 'def', minus: 'spe' },
-  Sassy: { plus: 'spd', minus: 'spe' },
+  Rash: n('spa', 'spd'),
+  Relaxed: n('def', 'spe'),
+  Sassy: n('spd', 'spe'),
   Serious: NEUTRAL,
-  Timid: { plus: 'spe', minus: 'atk' },
-};
+  Timid: n('spe', 'atk'),
+});
 
 export const NATURE_NAMES = Object.keys(NATURES) as NatureName[];
 

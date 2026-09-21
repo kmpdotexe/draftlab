@@ -92,4 +92,15 @@ describe('parsePriceCsv', () => {
   it('returns nothing for empty text', () => {
     expect(parsePriceCsv('', snapshot)).toEqual({ prices: {}, unmatched: [], problems: [] });
   });
+
+  it('reports a problem instead of throwing when the input is not text', () => {
+    for (const bad of [null, undefined, 5]) {
+      expect(() => parsePriceCsv(bad as unknown as string, snapshot)).not.toThrow();
+      expect(parsePriceCsv(bad as unknown as string, snapshot)).toEqual({
+        prices: {},
+        unmatched: [],
+        problems: [{ path: 'text', message: 'the price list must be text' }],
+      });
+    }
+  });
 });

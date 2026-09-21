@@ -34,6 +34,9 @@ function splitLine(line: string): [name: string, points: string] | null {
  * snapshot's species; there is no fuzzy matching.
  */
 export function parsePriceCsv(text: string, snapshot: LegalSpeciesSource): PriceImport {
+  if (typeof text !== 'string') {
+    return { prices: {}, unmatched: [], problems: [{ path: 'text', message: 'the price list must be text' }] };
+  }
   const prices: Record<ID, number> = {};
   const unmatched: string[] = [];
   const problems: Problem[] = [];
