@@ -10,7 +10,7 @@ import type { ShowdownFormatData } from './showdown/source';
 import type { MoveEntry, SpeciesEntry } from '../src/domain/types';
 
 const config: FormatConfig = { id: 'fmt', label: 'Fmt', statsFormatIds: ['a', 'b'], cutoff: 1630 };
-const limits = { minSpecies: 2, minMoves: 1 };
+const limits = { minSpecies: 2, minMoves: 1, minItems: 1 };
 
 function species(id: string, name: string): SpeciesEntry {
   return {
@@ -40,6 +40,8 @@ function showdownData(learnsetMove = 'fakeout'): ShowdownFormatData {
     species: { incineroar: species('incineroar', 'Incineroar'), kingambit: species('kingambit', 'Kingambit') },
     moves: { fakeout: move('fakeout', 'Fake Out') },
     learnsets: { incineroar: [learnsetMove], kingambit: [] },
+    items: { sitrusberry: { id: 'sitrusberry', name: 'Sitrus Berry' } },
+    warnings: [],
   };
 }
 
@@ -115,6 +117,17 @@ describe('runSync', () => {
     writeFileSync(join(dir, 'snapshot.json'), 'LAST-GOOD');
 
     await expect(runSync(config, deps)).rejects.toThrow(/HTTP 500/);
+
+    expect(readFileSync(join(dir, 'snapshot.json'), 'utf8')).toBe('LAST-GOOD');
+  });
+
+  it('leaves the previous snapshot untouched when the item table is empty', async () => {
+    const deps = makeDeps({ loadShowdown: () => ({ ...showdownData(), items: {} }) });
+    const dir = join(deps.dataDir, 'fmt');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'snapshot.json'), 'LAST-GOOD');
+
+    await expect(runSync(config, deps)).rejects.toThrow(/only 0 items/);
 
     expect(readFileSync(join(dir, 'snapshot.json'), 'utf8')).toBe('LAST-GOOD');
   });

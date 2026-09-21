@@ -9,9 +9,10 @@ import type { ChaosSource } from './smogon/fetch';
 export interface Limits {
   minSpecies: number;
   minMoves: number;
+  minItems: number;
 }
 
-export const DEFAULT_LIMITS: Limits = { minSpecies: 150, minMoves: 100 };
+export const DEFAULT_LIMITS: Limits = { minSpecies: 150, minMoves: 100, minItems: 100 };
 
 export interface BuildInputs {
   config: FormatConfig;
@@ -33,6 +34,18 @@ export function validateSnapshot(snapshot: Snapshot, limits: Limits = DEFAULT_LI
   }
   if (moveCount < limits.minMoves) {
     problems.push(`only ${moveCount} moves (expected at least ${limits.minMoves})`);
+  }
+  const itemCount = Object.keys(snapshot.items).length;
+  if (itemCount < limits.minItems) {
+    problems.push(`only ${itemCount} items (expected at least ${limits.minItems})`);
+  }
+  for (const [key, item] of Object.entries(snapshot.items)) {
+    if (item.id !== key) problems.push(`item table key "${key}" does not match its id "${item.id}"`);
+    for (const speciesId of item.usableBy ?? []) {
+      if (!snapshot.species[speciesId]) {
+        problems.push(`item "${key}" is restricted to "${speciesId}", which is not a legal species`);
+      }
+    }
   }
   for (const [speciesId, moveIds] of Object.entries(snapshot.learnsets)) {
     if (!snapshot.species[speciesId]) problems.push(`learnset for unknown species "${speciesId}"`);
@@ -117,18 +130,21 @@ export function buildSnapshot({ config, showdown, chaos, now, limits = DEFAULT_L
     );
   }
 
+  warnings.push(...showdown.warnings);
+
   const snapshot: Snapshot = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     formatId: config.id,
     species: showdown.species,
     moves: showdown.moves,
     learnsets: showdown.learnsets,
+    items: showdown.items,
     usage,
   };
   validateSnapshot(snapshot, limits);
 
   const meta: SnapshotMeta = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     formatId: config.id,
     label: config.label,
     generatedAt: now.toISOString(),

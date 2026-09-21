@@ -59,5 +59,35 @@ describe.each(['gen9championsvgc2026regmb'])(
       expect(data.rules.ruleset).toContain('Flat Rules');
       expect(data.rules.adjustLevel).toBe(50);
     });
+
+    it('has the legal Champions items with display names', () => {
+      const count = Object.keys(data.items).length;
+      expect(count).toBeGreaterThanOrEqual(100);
+      expect(count).toBeLessThan(400);
+      expect(data.items.sitrusberry).toEqual({ id: 'sitrusberry', name: 'Sitrus Berry' });
+    });
+
+    it('leaves out items that are not legal in Champions', () => {
+      expect(data.items.assaultvest).toBeUndefined(); // marked Past in the Champions mod
+    });
+
+    it('ties a Mega stone to the species that can hold it, and only to legal species', () => {
+      expect(data.items.staraptite?.usableBy).toContain('staraptor');
+      for (const entry of Object.values(data.items)) {
+        for (const speciesId of entry.usableBy ?? []) {
+          expect(data.species[speciesId], `${entry.id} usableBy ${speciesId}`).toBeDefined();
+        }
+      }
+    });
+
+    it('warns about restricted-species entries it dropped and about required items that are not legal items', () => {
+      // Light Ball lists 15 Pikachu forms that are not legal species here.
+      expect(data.warnings.some((w) => w.startsWith('Dropped') && w.includes('lightball'))).toBe(true);
+      // The package data lists three Ogerpon tera formes as legal but their masks are not legal items.
+      // If a package update makes these consistent this test will fail: review, then update it.
+      expect(
+        data.warnings.some((w) => w.includes('ogerponwellspringtera') && w.includes('Wellspring Mask')),
+      ).toBe(true);
+    });
   },
 );

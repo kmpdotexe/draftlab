@@ -31,6 +31,14 @@ export interface MoveEntry {
   flags: string[];
 }
 
+export interface ItemEntry {
+  id: ID;
+  /** Display name, e.g. "Sitrus Berry". */
+  name: string;
+  /** Species ids allowed to hold it (Mega stones and similar). Absent means anyone. */
+  usableBy?: ID[];
+}
+
 export interface FormatRules {
   /** The format's `ruleset` verbatim, e.g. ["Flat Rules", "VGC Timer", "Open Team Sheets"]. */
   ruleset: string[];
@@ -72,7 +80,7 @@ export interface UsageData {
 }
 
 export interface Snapshot {
-  schemaVersion: 1;
+  schemaVersion: 2;
   formatId: string;
   /** Legal species only. */
   species: Record<ID, SpeciesEntry>;
@@ -80,6 +88,8 @@ export interface Snapshot {
   moves: Record<ID, MoveEntry>;
   /** Legal species id -> legal move ids. */
   learnsets: Record<ID, ID[]>;
+  /** Legal items. */
+  items: Record<ID, ItemEntry>;
   usage: UsageData | null;
 }
 
@@ -95,7 +105,7 @@ export interface UsageMeta {
 }
 
 export interface SnapshotMeta {
-  schemaVersion: 1;
+  schemaVersion: 2;
   formatId: string;
   label: string;
   generatedAt: string;

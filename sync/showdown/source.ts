@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import type { ID } from '../../src/domain/id';
-import type { FormatRules, MoveEntry, SpeciesEntry, StatTable } from '../../src/domain/types';
+import { toID, type ID } from '../../src/domain/id';
+import type { FormatRules, ItemEntry, MoveEntry, SpeciesEntry, StatTable } from '../../src/domain/types';
 
 // The slice of the pokemon-showdown API this loader relies on. Kept local so the rest of the
 // codebase never depends on the package's own (large) type surface.
@@ -36,6 +36,14 @@ interface SdMove {
   flags: Record<string, number | undefined>;
   isNonstandard?: string | null;
 }
+interface SdItem {
+  exists: boolean;
+  id: string;
+  name: string;
+  isNonstandard?: string | null;
+  /** Species names allowed to hold the item (Mega stones and similar). */
+  itemUser?: string[];
+}
 interface SdFormat {
   exists: boolean;
   name: string;
@@ -55,6 +63,7 @@ interface SdDex {
     getLearnsetData(id: string): { learnset?: Record<string, string[]> };
   };
   moves: { get(name: string): SdMove };
+  items: { all(): SdItem[] };
   formats: { get(name: string): SdFormat; getRuleTable(format: SdFormat): SdRuleTable };
   mod(name: string): SdDex;
 }
@@ -67,6 +76,9 @@ export interface ShowdownFormatData {
   species: Record<ID, SpeciesEntry>;
   moves: Record<ID, MoveEntry>;
   learnsets: Record<ID, ID[]>;
+  items: Record<ID, ItemEntry>;
+  /** Non-fatal findings worth surfacing in meta.json. */
+  warnings: string[];
 }
 
 function loadDex(): SdDex {
@@ -167,6 +179,33 @@ export function loadShowdownFormat(formatId: string): ShowdownFormatData {
     learnsets[s.id] = legalMoves.sort();
   }
 
+  // Legal items. A restricted item (a Mega stone) keeps only the species that are legal in this format.
+  const items: Record<ID, ItemEntry> = {};
+  const droppedRestrictions: Array<[itemId: string, count: number]> = [];
+  for (const item of dex.items.all()) {
+    if (!item.exists || item.isNonstandard) continue;
+    if (!item.itemUser) {
+      items[item.id] = { id: item.id, name: item.name };
+      continue;
+    }
+    const usableBy = item.itemUser.map((name) => toID(name)).filter((id) => Object.hasOwn(species, id));
+    const dropped = item.itemUser.length - usableBy.length;
+    if (dropped > 0) droppedRestrictions.push([item.id, dropped]);
+    if (usableBy.length > 0) items[item.id] = { id: item.id, name: item.name, usableBy };
+  }
+
+  const warnings: string[] = [];
+  if (droppedRestrictions.length > 0) {
+    const total = droppedRestrictions.reduce((sum, [, count]) => sum + count, 0);
+    const detail = droppedRestrictions.map(([id, count]) => `${id}: ${count}`).join(', ');
+    warnings.push(`Dropped ${total} restricted-species entries that are not legal in ${formatId} (${detail})`);
+  }
+  for (const s of legalSpecies) {
+    if (s.requiredItem && !Object.hasOwn(items, toID(s.requiredItem))) {
+      warnings.push(`${s.id} requires "${s.requiredItem}", which is not a legal item in ${formatId}`);
+    }
+  }
+
   return {
     formatName: format.name,
     mod: format.mod,
@@ -180,5 +219,7 @@ export function loadShowdownFormat(formatId: string): ShowdownFormatData {
     species,
     moves,
     learnsets,
+    items,
+    warnings,
   };
 }

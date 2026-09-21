@@ -7,10 +7,10 @@ import type { FormatConfig } from './formats.config';
 import type { RawChaos, RawChaosMon } from './smogon/chaos';
 import type { ChaosSource } from './smogon/fetch';
 import type { ShowdownFormatData } from './showdown/source';
-import type { MoveEntry, Snapshot, SpeciesEntry, UsageData, UsageEntry } from '../src/domain/types';
+import type { ItemEntry, MoveEntry, Snapshot, SpeciesEntry, UsageData, UsageEntry } from '../src/domain/types';
 
 const config: FormatConfig = { id: 'fmt', label: 'Fmt', statsFormatIds: ['statsA', 'statsB'], cutoff: 1630 };
-const limits = { minSpecies: 2, minMoves: 1 };
+const limits = { minSpecies: 2, minMoves: 1, minItems: 1 };
 const now = new Date('2026-09-20T12:00:00.000Z');
 
 function species(id: string, name: string): SpeciesEntry {
@@ -42,6 +42,10 @@ function move(id: string, name: string): MoveEntry {
   };
 }
 
+function item(id: string, name: string, usableBy?: string[]): ItemEntry {
+  return usableBy ? { id, name, usableBy } : { id, name };
+}
+
 function showdownData(): ShowdownFormatData {
   return {
     formatName: '[Gen 9 Champions] Fmt',
@@ -51,6 +55,11 @@ function showdownData(): ShowdownFormatData {
     species: { incineroar: species('incineroar', 'Incineroar'), kingambit: species('kingambit', 'Kingambit') },
     moves: { fakeout: move('fakeout', 'Fake Out') },
     learnsets: { incineroar: ['fakeout'], kingambit: [] },
+    items: {
+      sitrusberry: item('sitrusberry', 'Sitrus Berry'),
+      staraptite: item('staraptite', 'Staraptite', ['incineroar']),
+    },
+    warnings: [],
   };
 }
 
@@ -117,8 +126,36 @@ describe('buildSnapshot', () => {
 
   it('refuses to build when there are too few species', () => {
     expect(() =>
-      buildSnapshot({ config, showdown: showdownData(), chaos: null, now, limits: { minSpecies: 5, minMoves: 1 } }),
+      buildSnapshot({ config, showdown: showdownData(), chaos: null, now, limits: { minSpecies: 5, minMoves: 1, minItems: 1 } }),
     ).toThrow(/only 2 species/);
+  });
+
+  it('puts the item table in the snapshot and marks both files schemaVersion 2', () => {
+    const { snapshot, meta } = buildSnapshot({ config, showdown: showdownData(), chaos: null, now, limits });
+    expect(snapshot.schemaVersion).toBe(2);
+    expect(meta.schemaVersion).toBe(2);
+    expect(Object.keys(snapshot.items).sort()).toEqual(['sitrusberry', 'staraptite']);
+    expect(snapshot.items.staraptite).toEqual({ id: 'staraptite', name: 'Staraptite', usableBy: ['incineroar'] });
+  });
+
+  it('appends the loader warnings to meta.warnings, after the usage warnings', () => {
+    const showdown = { ...showdownData(), warnings: ['Dropped 2 restricted-species entries'] };
+    const { meta } = buildSnapshot({ config, showdown, chaos: null, now, limits });
+    expect(meta.warnings).toHaveLength(2);
+    expect(meta.warnings[0]).toContain('No usage data found');
+    expect(meta.warnings[1]).toBe('Dropped 2 restricted-species entries');
+  });
+
+  it('refuses to build when there are too few items', () => {
+    expect(() =>
+      buildSnapshot({ config, showdown: showdownData(), chaos: null, now, limits: { ...limits, minItems: 5 } }),
+    ).toThrow(/only 2 items/);
+  });
+
+  it('does not refuse a legal species whose required item is missing from the table (the loader warns instead)', () => {
+    const showdown = showdownData();
+    showdown.species.kingambit = { ...species('kingambit', 'Kingambit'), requiredItem: 'Ghost Stone' };
+    expect(() => buildSnapshot({ config, showdown, chaos: null, now, limits })).not.toThrow();
   });
 });
 
@@ -161,6 +198,21 @@ describe('validateSnapshot', () => {
       const broken = corruptKingambit(validSnapshot(), { usage });
       expect(() => validateSnapshot(broken, limits), String(usage)).toThrow(/kingambit.*usage/);
     }
+  });
+
+  it('rejects an item whose table key differs from its id', () => {
+    const snapshot = validSnapshot();
+    const broken = { ...snapshot, items: { ...snapshot.items, wrongkey: item('sitrusberry', 'Sitrus Berry') } };
+    expect(() => validateSnapshot(broken, limits)).toThrow(/item table key "wrongkey" does not match its id "sitrusberry"/);
+  });
+
+  it('rejects an item restricted to a species that is not legal', () => {
+    const snapshot = validSnapshot();
+    const broken = {
+      ...snapshot,
+      items: { ...snapshot.items, staraptite: item('staraptite', 'Staraptite', ['ghostmon']) },
+    };
+    expect(() => validateSnapshot(broken, limits)).toThrow(/item "staraptite" is restricted to "ghostmon"/);
   });
 });
 
