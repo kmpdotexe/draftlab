@@ -156,7 +156,8 @@ export function parseDraftFile(text: string, snapshot: LegalSpeciesSource): Pars
     }
   });
 
-  const roster = new Set(deriveDraft(file.league, file.picks, snapshot).drafters[file.league.me].roster);
+  // Safe only because layer 2 (validateLeague) bounds league.me and layer 3 (checkPick) bounds the pick count; keep those layers first.
+  const roster = new Set(deriveDraft(file.league, file.picks, snapshot).drafters[file.league.me]?.roster ?? []);
   for (const id of Object.keys(file.sets)) {
     if (!roster.has(id)) warnings.push({ path: `sets.${id}`, message: `"${id}" is not on your roster; the set is ignored` });
   }

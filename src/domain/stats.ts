@@ -12,13 +12,15 @@ const NO_EFFECT: Nature = { plus: null, minus: null };
 /**
  * Final battle stats, using Showdown's Champions formula for the VGC formats: HP is base + points + 75,
  * every other stat is base + points + 20, and then a raised stat is floor(v * 110 / 100) and a lowered
- * stat floor(v * 90 / 100). No IVs. A missing nature is neutral; missing points are 0.
+ * stat floor(v * 90 / 100). No IVs. A missing nature is neutral; missing points are 0,
+ * and a points value that is not a finite number counts as 0 too.
  */
 export function computeStats(baseStats: StatTable, nature?: NatureName, points?: StatPoints): Stats {
   const effect = nature !== undefined && Object.hasOwn(NATURES, nature) ? NATURES[nature] : NO_EFFECT;
   const result = {} as Stats;
   for (const stat of STAT_NAMES) {
-    const spent = points?.[stat] ?? 0;
+    const raw = points?.[stat];
+    const spent = typeof raw === 'number' && Number.isFinite(raw) ? raw : 0;
     if (stat === 'hp') {
       result.hp = baseStats.hp + spent + 75;
       continue;

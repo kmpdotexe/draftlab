@@ -35,7 +35,7 @@ export function validateSetAgainstSnapshot(set: PokemonSet, snapshot: SetSnapsho
     }
   });
 
-  const requiredItem = species.requiredItem === null ? null : toID(species.requiredItem);
+  const requiredItem = species.requiredItem ? toID(species.requiredItem) : null;
 
   if (set.item !== undefined) {
     if (!Object.hasOwn(snapshot.items, set.item)) {

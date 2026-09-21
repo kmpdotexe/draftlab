@@ -57,6 +57,18 @@ describe('computeStats', () => {
     expect(computeStats(FLAT, undefined, partial)).toEqual({ hp: 125, atk: 80, def: 70, spa: 70, spd: 70, spe: 70 });
   });
 
+  it('ignores points that are not finite numbers, as if there were no points', () => {
+    const odd = { hp: '4', atk: NaN, spe: Infinity } as unknown as StatPoints;
+    expect(computeStats(INCINEROAR, undefined, odd)).toEqual(computeStats(INCINEROAR));
+  });
+
+  it('never produces a string result from a string points value', () => {
+    const odd = { hp: '4', atk: '10', def: '1', spa: '2', spd: '3', spe: '5' } as unknown as StatPoints;
+    const result = computeStats(INCINEROAR, 'Jolly', odd);
+    expect(Object.values(result)).toHaveLength(6);
+    for (const value of Object.values(result)) expect(typeof value).toBe('number');
+  });
+
   it('treats an unknown nature name as neutral', () => {
     expect(computeStats(FLAT, 'Bogus' as unknown as NatureName)).toEqual(computeStats(FLAT));
   });

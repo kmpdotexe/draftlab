@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { PokemonSet } from './set';
 import { validateTeam, type MatchTeam, type RosterSets } from './team';
-import { setSnapshot } from './test-support';
+import { itemEntry, setSnapshot, speciesEntry } from './test-support';
 
 const snapshot = setSnapshot();
 const ALL = ['incineroar', 'staraptor', 'staraptormega', 'charizard', 'charizardmegax', 'kingambit', 'garchomp', 'sinistcha'];
@@ -110,6 +110,35 @@ describe('validateTeam', () => {
       ]);
     });
 
+    it('names the first earlier member, not the previous one, when three share a dex number', () => {
+      const three = setSnapshot();
+      three.species.charizardmegay = speciesEntry('charizardmegay', 'Charizard-Mega-Y', {
+        num: 6,
+        abilities: ['Drought'],
+        baseSpecies: 'Charizard',
+        forme: 'Mega-Y',
+        requiredItem: 'Charizardite Y',
+      });
+      three.learnsets.charizardmegay = ['flareblitz'];
+      three.items.charizarditey = itemEntry('charizarditey', 'Charizardite Y', ['charizard']);
+      const sets: RosterSets = {
+        charizardmegax: { species: 'charizardmegax', item: 'charizarditex' },
+        charizardmegay: { species: 'charizardmegay', item: 'charizarditey' },
+      };
+      const roster = ['charizard', 'charizardmegax', 'charizardmegay'];
+      const result = validateTeam(team('charizard', 'charizardmegax', 'charizardmegay'), roster, sets, three, 6);
+      expect(result.problems).toEqual([
+        {
+          path: 'team.members[1]',
+          message: '"charizardmegax" and "charizard" are the same Pokémon (dex number 6); Species Clause',
+        },
+        {
+          path: 'team.members[2]',
+          message: '"charizardmegay" and "charizard" are the same Pokémon (dex number 6); Species Clause',
+        },
+      ]);
+    });
+
     it('allows different Pokémon', () => {
       expect(run(['incineroar', 'kingambit']).problems).toEqual([]);
     });
@@ -123,6 +152,18 @@ describe('validateTeam', () => {
       };
       expect(run(['incineroar', 'kingambit'], sets).problems).toEqual([
         { path: 'team.members[1].item', message: '"kingambit" and "incineroar" both hold Leftovers; Item Clause' },
+      ]);
+    });
+
+    it('names the first holder, not the previous one, when three members hold the same item', () => {
+      const sets: RosterSets = {
+        incineroar: { species: 'incineroar', item: 'leftovers' },
+        kingambit: { species: 'kingambit', item: 'leftovers' },
+        garchomp: { species: 'garchomp', item: 'leftovers' },
+      };
+      expect(run(['incineroar', 'kingambit', 'garchomp'], sets).problems).toEqual([
+        { path: 'team.members[1].item', message: '"kingambit" and "incineroar" both hold Leftovers; Item Clause' },
+        { path: 'team.members[2].item', message: '"garchomp" and "incineroar" both hold Leftovers; Item Clause' },
       ]);
     });
 
@@ -173,6 +214,16 @@ describe('validateTeam', () => {
       expect(odd.problems.map((p) => p.path)).toEqual(['team.members[0]', 'team.members[1]']);
       const badSet = { incineroar: 5 as unknown as PokemonSet };
       expect(paths(['incineroar'], badSet)).toEqual(['team.members[0]']);
+    });
+
+    it('roots every path at the path it is given', () => {
+      expect(validateTeam({ name: 'T', members: ['incineroar', 'incineroar'] }, ALL, {}, snapshot, 6, 'teams[2]').problems).toEqual([
+        { path: 'teams[2].members[1]', message: '"incineroar" is listed twice' },
+      ]);
+      const oversize = validateTeam(team('incineroar', 'kingambit', 'garchomp'), ALL, {}, snapshot, 2, 'teams[2]');
+      expect(oversize.problems[0].path).toBe('teams[2].members');
+      const malformed = validateTeam(null as unknown as MatchTeam, ALL, {}, snapshot, 6, 'teams[2]');
+      expect(malformed.problems).toEqual([{ path: 'teams[2]', message: 'team must have a list of members' }]);
     });
 
     it('does not modify its inputs', () => {

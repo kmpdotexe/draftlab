@@ -147,6 +147,15 @@ describe('validateSetAgainstSnapshot', () => {
       ).toEqual(['team.members[2].moves[0]']);
     });
 
+    it('treats a missing or empty requiredItem as no required item', () => {
+      for (const missing of [undefined, '']) {
+        const copy = setSnapshot();
+        copy.species.garchomp = { ...copy.species.garchomp, requiredItem: missing as unknown as string | null };
+        expect(validateSetAgainstSnapshot({ species: 'garchomp' }, copy, 'set')).toEqual([]);
+        expect(validateSetAgainstSnapshot({ species: 'garchomp', item: 'sitrusberry' }, copy, 'set')).toEqual([]);
+      }
+    });
+
     it('does not modify its inputs', () => {
       const set: PokemonSet = { species: 'incineroar', moves: ['fakeout'] };
       const before = JSON.stringify({ set, snapshot });

@@ -24,6 +24,8 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /**
  * Checks a match team: size, repeats, roster membership, each member's set, then Species Clause (same dex
  * number) and Item Clause (same item). Choosing which 4 to bring is not modeled. Never throws.
+ * `path` is the prefix for every problem path (default 'team'), so a caller can root the team elsewhere,
+ * for example 'teams[2]' gives 'teams[2].members[1]'.
  */
 export function validateTeam(
   team: MatchTeam,
@@ -31,24 +33,25 @@ export function validateTeam(
   sets: RosterSets,
   snapshot: SetSnapshot,
   teamSize: number,
+  path = 'team',
 ): TeamCheck {
   if (!isRecord(team) || !Array.isArray(team.members)) {
-    return { problems: [{ path: 'team', message: 'team must have a list of members' }], complete: false };
+    return { problems: [{ path, message: 'team must have a list of members' }], complete: false };
   }
 
   const problems: Problem[] = [];
-  const add = (path: string, message: string) => problems.push({ path, message });
+  const add = (at: string, message: string) => problems.push({ path: at, message });
   const onRoster = new Set(Array.isArray(roster) ? roster : []);
   const setFor = (id: ID): unknown => (isRecord(sets) && Object.hasOwn(sets, id) ? sets[id] : { species: id });
 
   if (team.members.length > teamSize) {
-    add('team.members', `at most ${teamSize} members (found ${team.members.length})`);
+    add(`${path}.members`, `at most ${teamSize} members (found ${team.members.length})`);
   }
 
   const seen = new Set<ID>();
   const members: Array<{ index: number; id: ID; set: unknown }> = [];
   team.members.forEach((id, i) => {
-    const at = `team.members[${i}]`;
+    const at = `${path}.members[${i}]`;
     if (typeof id !== 'string' || id === '') {
       add(at, 'member must be a species id');
       return;
@@ -76,7 +79,7 @@ export function validateTeam(
     const num = snapshot.species[id].num;
     const first = firstByNum.get(num);
     if (first !== undefined) {
-      add(`team.members[${index}]`, `"${id}" and "${first}" are the same Pokémon (dex number ${num}); Species Clause`);
+      add(`${path}.members[${index}]`, `"${id}" and "${first}" are the same Pokémon (dex number ${num}); Species Clause`);
     } else {
       firstByNum.set(num, id);
     }
@@ -90,7 +93,7 @@ export function validateTeam(
     const first = firstByItem.get(item);
     if (first !== undefined) {
       const name = Object.hasOwn(snapshot.items, item) ? snapshot.items[item].name : item;
-      add(`team.members[${index}].item`, `"${id}" and "${first}" both hold ${name}; Item Clause`);
+      add(`${path}.members[${index}].item`, `"${id}" and "${first}" both hold ${name}; Item Clause`);
     } else {
       firstByItem.set(item, id);
     }
