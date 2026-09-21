@@ -189,6 +189,14 @@ describe('round trip: parsePaste(exportSet(set)) gives the set back', () => {
     expect(roundTrip(set)).toEqual({ set, problems: [], notes: [] });
   });
 
+  it('except that a base species holding its own Mega stone comes back as the Mega form, with a note', () => {
+    expect(roundTrip({ species: 'staraptor', item: 'staraptite' })).toEqual({
+      set: { species: 'staraptormega', item: 'staraptite' },
+      problems: [],
+      notes: ['read "Staraptor" holding Staraptite as Staraptor-Mega'],
+    });
+  });
+
   it('for a species-only set', () => {
     expect(roundTrip({ species: 'incineroar' })).toEqual({ set: { species: 'incineroar' }, problems: [], notes: [] });
   });

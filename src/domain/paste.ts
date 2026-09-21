@@ -41,7 +41,7 @@ const IGNORED_LABELS = new Set([
 function splitBlocks(text: string): string[][] {
   const blocks: string[][] = [];
   let current: string[] = [];
-  for (const raw of text.split('\n')) {
+  for (const raw of text.split(/\r\n|[\n\r]/)) {
     const line = raw.trim();
     if (line === '' || line.startsWith('===')) {
       if (current.length > 0) blocks.push(current);
@@ -141,17 +141,19 @@ function parseBlock(blockLines: string[], index: number, snapshot: SetSnapshot):
       continue;
     }
 
-    const labelled = /^([A-Za-z ]+?)\s*:\s*(.*)$/.exec(line);
+    const labelled = /^([A-Za-z]+(?:\s+[A-Za-z]+)*)\s*:\s*(.*)$/.exec(line);
     if (!labelled) {
       notes.push(`unrecognized line: ${line}`);
       continue;
     }
-    const label = labelled[1].toLowerCase();
+    const label = labelled[1].toLowerCase().replace(/\s+/g, ' ');
     const value = labelled[2].trim();
     if (label === 'ability') {
       if (toID(value) !== '') set.ability = toID(value);
+      else notes.push('empty Ability line skipped');
     } else if (label === 'level') {
-      if (value !== '50') notes.push(`Level ${value} ignored (Champions battles are level 50)`);
+      if (value === '') notes.push('empty Level line skipped');
+      else if (Number(value) !== 50) notes.push(`Level ${value} ignored (Champions battles are level 50)`);
     } else if (label === 'evs') {
       const points = parseEvs(value);
       if (points !== null) {
@@ -174,6 +176,11 @@ function parseBlock(blockLines: string[], index: number, snapshot: SetSnapshot):
 /**
  * Reads Showdown-format text into one `ParsedSet` per block. Lenient: names become ids as written and legality
  * problems are reported beside the set instead of rejecting it. Never throws; text that is not a string gives [].
+ *
+ * A base species holding a stone that one legal form of the same base species requires is read as that Mega
+ * form, with a note (`read "Staraptor" holding Staraptite as Staraptor-Mega`). So a valid `{ species:
+ * 'staraptor', item: 'staraptite' }` exported and re-imported comes back as `staraptormega`: each form is its
+ * own pick, and the user could equally have written the Mega form.
  */
 export function parsePaste(text: string, snapshot: SetSnapshot): ParsedSet[] {
   if (typeof text !== 'string') return [];
@@ -193,10 +200,14 @@ export function pasteToTeam(parsed: ParsedSet[], name: string): PastedTeam {
   const repeats: Problem[] = [];
   const firstBlock = new Map<ID, number>();
 
-  parsed.forEach((entry, index) => {
-    problems.push(...entry.problems);
-    if (entry.set === null) return;
-    const id = entry.set.species;
+  const list: unknown[] = Array.isArray(parsed) ? parsed : [];
+  list.forEach((raw, index) => {
+    if (typeof raw !== 'object' || raw === null) return;
+    const entry = raw as Partial<ParsedSet>;
+    if (Array.isArray(entry.problems)) problems.push(...entry.problems);
+    const set = entry.set;
+    if (typeof set !== 'object' || set === null || typeof set.species !== 'string') return;
+    const id = set.species;
     const earlier = firstBlock.get(id);
     if (earlier !== undefined) {
       repeats.push({
@@ -207,7 +218,7 @@ export function pasteToTeam(parsed: ParsedSet[], name: string): PastedTeam {
     }
     firstBlock.set(id, index);
     members.push(id);
-    sets[id] = entry.set;
+    sets[id] = set;
   });
 
   return { team: { name, members }, sets, problems: [...problems, ...repeats] };

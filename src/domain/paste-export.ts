@@ -27,6 +27,10 @@ function evsLine(points: unknown): string {
  * One Showdown block. Champions stat points go on the EVs line 1:1 and the level is always 50. A set whose
  * points are all zero writes no EVs line, so it reads back with no points. Names come from the snapshot and
  * fall back to the id as written. Never rewrites a set. Returns '' for something that is not a usable set.
+ *
+ * Round trip through `parsePaste` has two exceptions: all-zero points come back with no `points`, and a base
+ * species holding a stone that a legal form of the same base species requires (Staraptor with Staraptite) comes
+ * back as that Mega form, with a note.
  */
 export function exportSet(set: PokemonSet, snapshot: SetSnapshot): string {
   if (typeof set !== 'object' || set === null || typeof set.species !== 'string' || set.species === '') return '';

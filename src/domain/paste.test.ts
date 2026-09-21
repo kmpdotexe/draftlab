@@ -345,6 +345,40 @@ describe('parsePaste', () => {
     });
   });
 
+  describe('robustness', () => {
+    it('reads a long run of interior whitespace in linear time', () => {
+      const line = 'x' + ' '.repeat(40000) + 'x';
+      const start = performance.now();
+      const parsed = parse(lines('Incineroar', line));
+      const elapsed = performance.now() - start;
+      expect(elapsed).toBeLessThan(500);
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].notes).toEqual(['unrecognized line: ' + line]);
+    });
+
+    it('still notes an ignored label written with two spaces', () => {
+      const parsed = one('Incineroar\nTera  Type: Fire');
+      expect(parsed.notes).toEqual(['Tera  Type: Fire']);
+      expect(parsed.problems).toEqual([]);
+    });
+
+    it('notes an Ability line with no readable value instead of dropping it silently', () => {
+      const parsed = one('Incineroar\nAbility:');
+      expect(parsed.notes).toEqual(['empty Ability line skipped']);
+      expect(parsed.set).toEqual({ species: 'incineroar' });
+    });
+
+    it('words the Level note by what the line holds', () => {
+      expect(one('Incineroar\nLevel:').notes).toEqual(['empty Level line skipped']);
+      expect(one('Incineroar\nLevel: 050').notes).toEqual([]);
+      expect(one('Incineroar\nLevel: 100').notes).toEqual(['Level 100 ignored (Champions battles are level 50)']);
+    });
+
+    it('splits blocks on a lone carriage return', () => {
+      expect(parse('Incineroar\r\rKingambit').map((p) => p.set?.species)).toEqual(['incineroar', 'kingambit']);
+    });
+  });
+
   it('does not modify the snapshot and keeps no state between calls', () => {
     const before = JSON.stringify(snapshot);
     const first = parse(lines(FULL, '', 'Staraptor @ Staraptite'));
@@ -394,7 +428,28 @@ describe('pasteToTeam', () => {
     ]);
   });
 
+  it('puts every repeated-species problem after all block problems, even a later block\'s own', () => {
+    // Block 1 repeats Incineroar; block 2 (Ghost) has its own species problem. The repeat is reported last.
+    const result = pasteToTeam(parse(lines('Incineroar', '', 'Incineroar', '', 'Ghost')), 'T');
+    expect(result.problems.map((p) => p.path)).toEqual(['paste[2].species', 'paste[1]']);
+  });
+
   it('returns an empty team for an empty paste', () => {
     expect(pasteToTeam([], 'Empty')).toEqual({ team: { name: 'Empty', members: [] }, sets: {}, problems: [] });
+  });
+
+  it('gives an empty team for something that is not a list', () => {
+    expect(pasteToTeam(null as unknown as ParsedSet[], 'x')).toEqual({
+      team: { name: 'x', members: [] },
+      sets: {},
+      problems: [],
+    });
+  });
+
+  it('skips list entries that are not parsed sets', () => {
+    const messy = [null, 5, { set: null, problems: [], notes: [] }, ...parse('Incineroar')] as unknown as ParsedSet[];
+    const result = pasteToTeam(messy, 'x');
+    expect(result.team.members).toEqual(['incineroar']);
+    expect(result.problems).toEqual([]);
   });
 });
