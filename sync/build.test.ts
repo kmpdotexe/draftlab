@@ -214,6 +214,15 @@ describe('validateSnapshot', () => {
     };
     expect(() => validateSnapshot(broken, limits)).toThrow(/item "staraptite" is restricted to "ghostmon"/);
   });
+
+  it('rejects an item restricted to a species like "constructor" (prototype pollution check)', () => {
+    const snapshot = validSnapshot();
+    const broken = {
+      ...snapshot,
+      items: { ...snapshot.items, staraptite: item('staraptite', 'Staraptite', ['constructor']) },
+    };
+    expect(() => validateSnapshot(broken, limits)).toThrow(/item "staraptite" is restricted to "constructor"/);
+  });
 });
 
 describe('writeSnapshot', () => {

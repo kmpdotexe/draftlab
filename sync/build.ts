@@ -42,7 +42,7 @@ export function validateSnapshot(snapshot: Snapshot, limits: Limits = DEFAULT_LI
   for (const [key, item] of Object.entries(snapshot.items)) {
     if (item.id !== key) problems.push(`item table key "${key}" does not match its id "${item.id}"`);
     for (const speciesId of item.usableBy ?? []) {
-      if (!snapshot.species[speciesId]) {
+      if (!Object.hasOwn(snapshot.species, speciesId)) {
         problems.push(`item "${key}" is restricted to "${speciesId}", which is not a legal species`);
       }
     }
