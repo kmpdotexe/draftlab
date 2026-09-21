@@ -1,6 +1,6 @@
 # Draft Lab
 
-Draft Lab is a single-user web app for Pokemon VGC draft leagues. You describe your league, record the draft as it happens, build your roster with full sets, and get explained teammate suggestions drawn from ladder usage, typing, roles and mechanics. The design is in `docs/superpowers/specs/2026-09-20-draft-lab-design.md`.
+Draft Lab is a single-user web app for Pokemon VGC draft leagues. You describe your league, record the draft as it happens, build your roster with full sets, and get explained teammate suggestions drawn from ladder usage, typing, roles and mechanics. The design is in `docs/superpowers/specs/2026-09-20-draft-lab-design.md`. For where the project stands and how it is built, see `docs/STATUS.md`.
 
 This repo currently contains the data layer (the sync step in `sync/` that produces the data files the app will read, the snapshot, and the usage math) and the domain logic in `src/domain/`: the set model, league config, draft board, price-list import, the saved-draft file, and the teambuilder logic (checking a set against the format, stat calculation, roster sets and match teams with Item and Species Clause checks), and Showdown paste import and export for sets and teams. There is no UI yet.
 
