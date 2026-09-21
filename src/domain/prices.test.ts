@@ -36,6 +36,12 @@ describe('parsePriceCsv', () => {
     expect(result.problems).toEqual([]);
   });
 
+  it('splits at the last tab even when the name contains a comma', () => {
+    const result = parsePriceCsv('Weird, Name\t5', snapshotOf(['weirdname']));
+    expect(result.prices).toEqual({ weirdname: 5 });
+    expect(result.problems).toEqual([]);
+  });
+
   it('lists names that match no species without treating them as problems', () => {
     const result = parsePriceCsv('Incineroar,20\nMissingno,5', snapshot);
     expect(result.prices).toEqual({ incineroar: 20 });

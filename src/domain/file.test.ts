@@ -36,6 +36,7 @@ describe('parseDraftFile', () => {
     const result = parseEdited((file) => {
       file.extra = 'ignored';
     });
+    expect(result.ok).toBe(true);
     expect(result.ok && 'extra' in result.file).toBe(false);
   });
 

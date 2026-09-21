@@ -68,6 +68,8 @@ describe('mock draft on the real Reg M-B snapshot', () => {
     }
 
     const final = deriveDraft(league, picks, snapshot);
+    // 4 drafters, snake: round 1 goes 0,1,2,3 and round 2 comes back 3,2,1,0.
+    expect(final.picks.slice(0, 8).map((p) => p.drafter)).toEqual([0, 1, 2, 3, 3, 2, 1, 0]);
     expect(final.complete).toBe(true);
     expect(final.onTheClock).toBeNull();
     expect(new Set(picks).size).toBe(total);
