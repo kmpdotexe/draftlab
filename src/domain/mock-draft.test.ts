@@ -112,7 +112,7 @@ describe('mock draft on the real Reg M-B snapshot', () => {
   it('saves and reopens a finished draft with no warnings', () => {
     const league = mockLeague();
     const picks = draftCheapest(league, league.drafters.length * league.rounds);
-    const parsed = parseDraftFile(serializeDraftFile({ schemaVersion: 1, league, picks }), snapshot);
+    const parsed = parseDraftFile(serializeDraftFile({ schemaVersion: 2, league, picks, sets: {}, teams: [] }), snapshot);
     if (!parsed.ok) throw new Error(`file refused: ${JSON.stringify(parsed.errors)}`);
     expect(parsed.warnings).toEqual([]);
     expect(parsed.file.picks).toEqual(picks);
@@ -123,7 +123,7 @@ describe('mock draft on the real Reg M-B snapshot', () => {
     const picks = draftCheapest(league, 5);
     const unpriced = Object.keys(snapshot.species).find((id) => !Object.hasOwn(prices, id)) as string;
     const bad = [...picks.slice(0, 3), unpriced, ...picks.slice(4)];
-    const parsed = parseDraftFile(serializeDraftFile({ schemaVersion: 1, league, picks: bad }), snapshot);
+    const parsed = parseDraftFile(serializeDraftFile({ schemaVersion: 2, league, picks: bad, sets: {}, teams: [] }), snapshot);
     expect(parsed.ok).toBe(false);
     if (!parsed.ok) {
       expect(parsed.errors[0].path).toBe('picks[3]');
