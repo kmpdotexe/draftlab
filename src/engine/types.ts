@@ -1,5 +1,6 @@
 import type { ID } from '../domain/id';
 import type { Snapshot } from '../domain/types';
+import type { TypeName } from './typechart';
 
 /** The slice of the snapshot the engine reads. A full `Snapshot` satisfies it. */
 export type EngineSnapshot = Pick<Snapshot, 'species' | 'moves' | 'usage'>;
@@ -36,17 +37,24 @@ export type Reason =
   | { kind: 'pairs-often-with'; with: ID; lift: number }
   | { kind: 'pairs-rarely-with'; with: ID; lift: number }
   | { kind: 'lift-coverage'; covered: number; of: number }
-  | { kind: 'covers-weakness'; type: string; by: 'resists' | 'immune'; weakMembers: ID[] }
-  | { kind: 'adds-weakness'; type: string; weakMembers: ID[] }
-  | { kind: 'adds-coverage'; types: string[] }
+  | { kind: 'covers-weakness'; type: TypeName; by: 'resists' | 'immune'; weakMembers: ID[] }
+  | { kind: 'adds-weakness'; type: TypeName; weakMembers: ID[] }
+  | { kind: 'adds-coverage'; types: TypeName[] }
   | { kind: 'low-usage'; usage: number }
   | { kind: 'no-ladder-usage' };
 
 export type Note =
   | { kind: 'invalid-context' }
+  | { kind: 'invalid-snapshot' }
   | { kind: 'roster-full' }
   | { kind: 'empty-roster' }
+  /**
+   * The priced pool is smaller than the open slots. Not the same as `DrafterState.cannotFillRoster` in the domain,
+   * which is also true when the budget is short.
+   */
   | { kind: 'cannot-fill-roster'; poolSize: number; openSlots: number }
+  /** Species that pass every rule except the budget existed, but none fits it. */
+  | { kind: 'no-affordable-candidates' }
   | { kind: 'no-usage-data' }
   | { kind: 'unscored-candidates'; count: number };
 
@@ -70,7 +78,7 @@ export interface Suggestion {
   price: number;
   /** In [0, 1]: the weighted sum of the signals that had data. */
   score: number;
-  /** Always both signals, in the order usageLift, typeSynergy. */
+  /** One entry per signal in `SIGNAL_NAMES` order (index by `signal`, not by position). */
   signals: SignalScore[];
   /** The signals' reasons in that order, then the informational usage reason. */
   reasons: Reason[];

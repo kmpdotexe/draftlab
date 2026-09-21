@@ -89,6 +89,21 @@ describe('liftSignal: reasons', () => {
     ]);
   });
 
+  it('never throws on ids that are inherited property names, and skips such a roster member', () => {
+    const none = { score: null, reasons: [] };
+    expect(liftSignal(['a'], 'toString', usage)).toEqual(none);
+    expect(liftSignal(['constructor'], 'c', usage)).toEqual(none);
+    expect(liftSignal(['a'], 'constructor', usage)).toEqual(none);
+
+    // The skipped member still counts toward `of`, so coverage reports 1 of 2.
+    const withBad = liftSignal(['a', 'constructor'], 'c', usage);
+    expect(withBad.score).toBe(liftSignal(['a'], 'c', usage).score);
+    expect(withBad.reasons).toEqual([
+      { kind: 'pairs-often-with', with: 'a', lift: 2 },
+      { kind: 'lift-coverage', covered: 1, of: 2 },
+    ]);
+  });
+
   it('lists no often or rarely reason for a lift of exactly 1', () => {
     expect(liftSignal(['b'], 'c', usage).reasons).toEqual([]);
   });

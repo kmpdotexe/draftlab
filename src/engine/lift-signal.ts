@@ -15,10 +15,11 @@ const MAX_OFTEN = 3;
  * limited to ids in the snapshot. No data when there is no usage data or no member has a pair with the candidate.
  */
 export function liftSignal(roster: ID[], candidate: ID, usage: UsageData | null): SignalOutput {
-  if (usage === null) return { score: null, reasons: [] };
+  if (usage === null || !Object.hasOwn(usage.species, candidate)) return { score: null, reasons: [] };
 
   const lifts: Array<{ member: ID; lift: number }> = [];
   for (const member of roster) {
+    if (!Object.hasOwn(usage.species, member)) continue;
     const lift = teammateLift(usage, member, candidate);
     if (lift !== null && Number.isFinite(lift) && lift > 0) lifts.push({ member, lift });
   }

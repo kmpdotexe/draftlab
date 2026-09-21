@@ -2,6 +2,7 @@ import type { ID } from '../domain/id';
 import { selectCandidates } from './candidates';
 import { liftSignal } from './lift-signal';
 import { clamp, compareIds } from './math';
+import { sanitizeSnapshot } from './snapshot-check';
 import { typeSignal } from './type-signal';
 import {
   SIGNAL_NAMES,
@@ -68,23 +69,28 @@ export function suggest(ctx: SuggestContext, snapshot: EngineSnapshot, options: 
   const early = (notes: Note[]): SuggestResult => ({ suggestions: [], considered: 0, notes });
   if (!isContext(ctx)) return early([{ kind: 'invalid-context' }]);
   const opts: SuggestOptions = typeof options === 'object' && options !== null ? options : {};
+  const view = sanitizeSnapshot(snapshot);
+  if (view === null) return early([{ kind: 'invalid-snapshot' }]);
 
   const roster: ID[] = [];
   for (const id of ctx.roster) {
-    if (typeof id === 'string' && Object.hasOwn(snapshot.species, id) && !roster.includes(id)) roster.push(id);
+    if (typeof id === 'string' && Object.hasOwn(view.species, id) && !roster.includes(id)) roster.push(id);
   }
   if (ctx.openSlots === 0) return early([{ kind: 'roster-full' }]);
   if (roster.length === 0) return early([{ kind: 'empty-roster' }]);
 
-  const selection = selectCandidates(ctx, roster, snapshot, opts);
+  const selection = selectCandidates(ctx, roster, view, opts);
   const weights = resolveWeights(opts);
   const limit = typeof opts.limit === 'number' && Number.isInteger(opts.limit) && opts.limit > 0 ? opts.limit : DEFAULT_LIMIT;
 
   const scored: Suggestion[] = [];
   let unscored = 0;
   for (const { species, price } of selection.candidates) {
-    const outputs: SignalOutput[] = [liftSignal(roster, species, snapshot.usage), typeSignal(roster, species, snapshot)];
-    const withData = SIGNAL_NAMES.filter((_, index) => outputs[index].score !== null);
+    const outputs: Record<SignalName, SignalOutput> = {
+      usageLift: liftSignal(roster, species, view.usage),
+      typeSynergy: typeSignal(roster, species, view),
+    };
+    const withData = SIGNAL_NAMES.filter((name) => outputs[name].score !== null);
     const total = withData.reduce((sum, name) => sum + weights[name], 0);
     if (withData.length === 0 || total <= 0) {
       unscored += 1;
@@ -92,15 +98,15 @@ export function suggest(ctx: SuggestContext, snapshot: EngineSnapshot, options: 
     }
 
     let score = 0;
-    const signals: SignalScore[] = SIGNAL_NAMES.map((signal, index) => {
-      const output = outputs[index];
+    const signals: SignalScore[] = SIGNAL_NAMES.map((signal) => {
+      const output = outputs[signal];
       if (output.score === null) return { signal, score: null, weight: 0, reasons: output.reasons };
       const weight = weights[signal] / total;
       score += weight * output.score;
       return { signal, score: output.score, weight, reasons: output.reasons };
     });
     const reasons = signals.flatMap((entry) => entry.reasons);
-    const extra = usageReason(snapshot, species);
+    const extra = usageReason(view, species);
     if (extra !== null) reasons.push(extra);
     scored.push({ species, price, score: clamp(score, 0, 1), signals, reasons });
   }
@@ -109,7 +115,8 @@ export function suggest(ctx: SuggestContext, snapshot: EngineSnapshot, options: 
   if (selection.pricedPoolSize < ctx.openSlots) {
     notes.push({ kind: 'cannot-fill-roster', poolSize: selection.pricedPoolSize, openSlots: ctx.openSlots });
   }
-  if (snapshot.usage === null) notes.push({ kind: 'no-usage-data' });
+  if (selection.candidates.length === 0 && selection.overBudget > 0) notes.push({ kind: 'no-affordable-candidates' });
+  if (view.usage === null) notes.push({ kind: 'no-usage-data' });
   if (unscored > 0) notes.push({ kind: 'unscored-candidates', count: unscored });
 
   scored.sort((a, b) => b.score - a.score || a.price - b.price || compareIds(a.species, b.species));

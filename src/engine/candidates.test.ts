@@ -91,6 +91,49 @@ describe('selectCandidates: the budget reserve', () => {
   });
 });
 
+describe('selectCandidates: overBudget', () => {
+  it('counts the species that pass every rule but fail the budget', () => {
+    // 3 open slots, remaining 10: p2, p4, p1 need 11, p3 needs 14, p5 needs 16, so all five are over budget.
+    const none = select({ openSlots: 3, remaining: 10 });
+    expect(none.candidates).toEqual([]);
+    expect(none.overBudget).toBe(5);
+    // At 13 p2, p4 and p1 fit; p3 (14) and p5 (16) do not.
+    const some = select({ openSlots: 3, remaining: 13 });
+    expect(ids(some)).toEqual(['p2', 'p4', 'p1']);
+    expect(some.overBudget).toBe(2);
+    expect(select({ openSlots: 3, remaining: 100 }).overBudget).toBe(0);
+  });
+
+  it('does not count a species that a usage filter, the roster or the dex rule already excluded', () => {
+    // p3 is at 90% usage: maxUsage 0.5 removes it, so only p5 is over budget at 13.
+    const busy = slice(POOL_NUMS, { p3: 0.9 });
+    const filtered = select({ openSlots: 3, remaining: 13 }, busy, [], { maxUsage: 0.5 });
+    expect(ids(filtered)).toEqual(['p2', 'p4', 'p1']);
+    expect(filtered.overBudget).toBe(1);
+    // minUsage 0.5 keeps only p3, which is over budget; the other four fail the filter, not the budget.
+    const kept = select({ openSlots: 3, remaining: 13 }, busy, [], { minUsage: 0.5 });
+    expect(kept.candidates).toEqual([]);
+    expect(kept.overBudget).toBe(1);
+
+    // r1 is on the roster and shares dex number 5 with p5: p5 is excluded by the dex rule, so only p3 is over budget.
+    const dex = slice({ ...POOL_NUMS, r1: 5 });
+    const byDex = select({ roster: ['r1'], openSlots: 3, remaining: 13 }, dex, ['r1']);
+    expect(ids(byDex)).toEqual(['p2', 'p4', 'p1']);
+    expect(byDex.overBudget).toBe(1);
+  });
+
+  it('does not count a pool id that is not in the snapshot or is on the roster', () => {
+    const snapshot = slice({ ...POOL_NUMS, r1: 10 });
+    const result = select(
+      { roster: ['r1'], pool: ['ghost', 'r1', 'p1'], prices: { ghost: 50, r1: 50, p1: 5 }, openSlots: 1, remaining: 4 },
+      snapshot,
+      ['r1'],
+    );
+    expect(result.candidates).toEqual([]);
+    expect(result.overBudget).toBe(1); // p1 only
+  });
+});
+
 describe('selectCandidates: roster and dex numbers', () => {
   it('leaves out the roster and every species that shares a dex number with a roster member', () => {
     const snapshot = slice({ r1: 10, p1: 10, p2: 11 });
@@ -174,6 +217,31 @@ describe('contextFor', () => {
     expect(contextFor(null as unknown as LeagueConfig, draft, 1)).toBeNull();
     expect(contextFor(league, null as unknown as DraftState, 1)).toBeNull();
     expect(contextFor(league, { drafters: 5 } as unknown as DraftState, 1)).toBeNull();
+  });
+
+  it('returns null when the drafter entry is not an object with a roster array', () => {
+    expect(contextFor(league, { drafters: [null], pool: [] } as unknown as DraftState, 0)).toBeNull();
+    expect(contextFor(league, { drafters: [{ roster: 'x' }], pool: [] } as unknown as DraftState, 0)).toBeNull();
+    expect(contextFor(league, { drafters: [{ remaining: 5, openSlots: 1 }], pool: [] } as unknown as DraftState, 0)).toBeNull();
+  });
+
+  it('returns copies, so changing the context leaves the draft and the league alone', () => {
+    const context = contextFor(league, draft, 1);
+    expect(context).not.toBeNull();
+    if (context === null) return;
+    expect(context.roster).toEqual(draft.drafters[1].roster);
+    expect(context.roster).not.toBe(draft.drafters[1].roster);
+    expect(context.pool).toEqual(draft.pool);
+    expect(context.pool).not.toBe(draft.pool);
+    expect(context.prices).toEqual(league.prices);
+    expect(context.prices).not.toBe(league.prices);
+
+    const before = JSON.stringify({ draft, league });
+    context.roster.push('zzz');
+    context.pool.push('zzz');
+    context.prices.zzz = 99;
+    expect(draft.drafters[1].roster).toEqual(['b']);
+    expect(JSON.stringify({ draft, league })).toBe(before);
   });
 });
 

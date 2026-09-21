@@ -114,6 +114,21 @@ describe('defensiveComponent', () => {
     ]);
   });
 
+  it('counts a x4 weakness as exposure 2 (relief 2), not 1', () => {
+    // Dragon/Grass takes x4 from Ice (severity +2, exposure 2); Fire/Steel takes x1/4 from Ice (-2): relief min(2, 2) = 2.
+    // Bug, Dragon, Fairy, Flying (each x2 on the roster, exposure 1) and Poison (Steel is immune, relief min(1, 2) = 1) add 1 each:
+    // 2 + 5 = 7 relief. Harm: Fighting 0.25, Ground 0.5 (x4), Water 0.25, all unexposed = 1. raw = 6, score = 0.5 + 6 / 12 = 1.
+    // Ice comes first because its relief is the biggest; Bug and Dragon follow by name (Fairy, Flying and Poison are cut by the cap of 3).
+    const result = defensiveComponent([member('dg', 'Dragon', 'Grass')], ['Fire', 'Steel']);
+    expect(result.raw).toBe(6);
+    expect(result.score).toBe(1);
+    expect(result.reasons).toEqual([
+      { kind: 'covers-weakness', type: 'Ice', by: 'resists', weakMembers: ['dg'] },
+      { kind: 'covers-weakness', type: 'Bug', by: 'resists', weakMembers: ['dg'] },
+      { kind: 'covers-weakness', type: 'Dragon', by: 'resists', weakMembers: ['dg'] },
+    ]);
+  });
+
   it('clamps to 1 when the raw score is far above 6', () => {
     // Two Dragon/Grass members are exposed (summed severity) to Bug, Dragon, Fairy, Flying, Ice, Poison. Fire/Steel resists or is
     // immune to all six, and the relief is capped by its own severity: Bug 2, Dragon 1, Fairy 2, Flying 1, Ice 2, Poison 2 = 10.

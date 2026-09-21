@@ -88,7 +88,9 @@ describe('multiplier', () => {
 
   it('is 1 for no types or something that is not a list, and ignores unknown types', () => {
     expect(multiplier('Fire', [])).toBe(1);
-    expect(multiplier('Fire', 'Grass' as unknown as string[])).toBe(1);
+    // A string is iterable, so it would pass even without the Array.isArray guard; null and undefined are not.
+    expect(multiplier('Fire', null as unknown as string[])).toBe(1);
+    expect(multiplier('Fire', undefined as unknown as string[])).toBe(1);
     expect(multiplier('Fire', ['Stellar', 'Grass'])).toBe(2);
   });
 });

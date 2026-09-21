@@ -285,6 +285,73 @@ describe('suggest: notes and early results', () => {
   });
 });
 
+describe('suggest: no-affordable-candidates', () => {
+  it('says so when candidates passed every rule but none fits the budget', () => {
+    // 3 open slots: the cheapest way to pick any of the five species costs 13, so 12 is short for all of them.
+    expect(suggest(ctx({ openSlots: 3, remaining: 12 }), snapshot())).toEqual({
+      suggestions: [],
+      considered: 0,
+      notes: [{ kind: 'no-affordable-candidates' }],
+    });
+  });
+
+  it('says nothing when some candidate fits, or when the filters (not the budget) left nobody', () => {
+    // At 14 with 3 open slots stla (17) is over budget but four others fit.
+    expect(suggest(ctx({ openSlots: 3, remaining: 14 }), snapshot()).notes).toEqual([]);
+    // Nothing has 90% usage: everyone is removed by the filter, none by the budget.
+    const filtered = suggest(ctx(), snapshot(), { minUsage: 0.9 });
+    expect(filtered.suggestions).toEqual([]);
+    expect(filtered.notes).toEqual([]);
+  });
+
+  it('comes after cannot-fill-roster and before no-usage-data', () => {
+    const s = snapshot();
+    s.usage = null;
+    // 6 open slots, 5 priced species: each needs all five (29 in total), so 28 is short for everyone.
+    expect(suggest(ctx({ openSlots: 6, remaining: 28 }), s).notes).toEqual([
+      { kind: 'cannot-fill-roster', poolSize: 5, openSlots: 6 },
+      { kind: 'no-affordable-candidates' },
+      { kind: 'no-usage-data' },
+    ]);
+  });
+});
+
+describe('suggest: a malformed snapshot', () => {
+  const invalid = { suggestions: [], considered: 0, notes: [{ kind: 'invalid-snapshot' }] };
+  const asSnapshot = (value: unknown) => value as EngineSnapshot;
+
+  it('says invalid-snapshot when the species or moves table is missing or not an object, without throwing', () => {
+    for (const bad of [null, {}, { species: {}, moves: 5, usage: null }, { ...snapshot(), moves: undefined }]) {
+      expect(() => suggest(ctx(), asSnapshot(bad)), JSON.stringify(bad)).not.toThrow();
+      expect(suggest(ctx(), asSnapshot(bad)), JSON.stringify(bad)).toEqual(invalid);
+    }
+  });
+
+  it('treats malformed usage as no usage data', () => {
+    const result = suggest(ctx(), asSnapshot({ ...snapshot(), usage: undefined }));
+    expect(result.notes).toEqual([{ kind: 'no-usage-data' }]);
+    expect(result.suggestions).toHaveLength(5);
+    for (const suggestion of result.suggestions) expect(suggestion.signals[0].score).toBeNull();
+  });
+
+  it('leaves out a species entry that is not an object, without throwing', () => {
+    const s = snapshot();
+    (s.species as Record<string, unknown>).nod = null;
+    expect(() => suggest(ctx(), s)).not.toThrow();
+    const result = suggest(ctx(), s);
+    expect(order(result)).toEqual(['stlb', 'stlc', 'stla', 'grd']);
+    expect(result.considered).toBe(4);
+  });
+
+  it('reports invalid-context first when both the context and the snapshot are malformed', () => {
+    expect(suggest({ ...ctx(), roster: 'dra1' } as unknown as SuggestContext, asSnapshot(null))).toEqual({
+      suggestions: [],
+      considered: 0,
+      notes: [{ kind: 'invalid-context' }],
+    });
+  });
+});
+
 describe('suggest: robustness', () => {
   it('does not modify its inputs and gives the same answer twice', () => {
     const s = snapshot();

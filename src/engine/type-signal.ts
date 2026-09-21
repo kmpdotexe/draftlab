@@ -31,6 +31,10 @@ export interface DefensiveResult {
  * summed severity (x4 = +2, x2 = +1, x1/2 = -1, x1/4 or immune = -2); only the part above 0 is an unresisted
  * weakness. A candidate that resists `T` relieves up to that much; one that is weak to `T` costs its severity
  * (a quarter of it where the roster is not exposed). The score is `0.5 + raw / DEFENSIVE_SCALE`, clamped.
+ *
+ * Two caveats. Exposure is a signed sum, so one member's resistance cancels another member's weakness to the same
+ * type; a real team does not fully work that way. And `DEFENSIVE_SCALE = 12` keeps the defensive score in roughly
+ * 0.12 to 0.79 on real rosters, so the combined scores cluster around 0.3 to 0.6.
  */
 export function defensiveComponent(roster: readonly TypedMember[], candidate: readonly string[]): DefensiveResult {
   let raw = 0;

@@ -15,13 +15,16 @@ export interface CandidateSelection {
   candidates: Candidate[];
   /** Pool species that have a finite price (whether or not they are in the snapshot). */
   pricedPoolSize: number;
+  /** Species that pass every rule except the budget (they are in the snapshot, off the roster, pass the filters) but do not fit it. */
+  overBudget: number;
 }
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 
 /**
  * The context for one drafter, from a derived `DraftState`. Derive the draft once and call this for each
- * question. Returns null when the drafter index is not an integer in range or the inputs are malformed.
+ * question. Returns copies of the roster, pool and prices, so the caller can change the context without touching the
+ * draft or the league. Returns null when the drafter index is not an integer in range or the inputs are malformed.
  */
 export function contextFor(league: LeagueConfig, draft: DraftState, drafterIndex: number): SuggestContext | null {
   if (typeof league !== 'object' || league === null || typeof league.prices !== 'object' || league.prices === null) {
@@ -32,10 +35,11 @@ export function contextFor(league: LeagueConfig, draft: DraftState, drafterIndex
   }
   if (!Number.isInteger(drafterIndex) || drafterIndex < 0 || drafterIndex >= draft.drafters.length) return null;
   const drafter = draft.drafters[drafterIndex];
+  if (typeof drafter !== 'object' || drafter === null || !Array.isArray(drafter.roster)) return null;
   return {
-    roster: drafter.roster,
-    pool: draft.pool,
-    prices: league.prices,
+    roster: [...drafter.roster],
+    pool: [...draft.pool],
+    prices: { ...league.prices },
     remaining: drafter.remaining,
     openSlots: drafter.openSlots,
   };
@@ -80,6 +84,7 @@ export function selectCandidates(
   const minUsage = isFiniteNumber(options.minUsage) ? options.minUsage : null;
 
   const candidates: Candidate[] = [];
+  let overBudget = 0;
   priced.forEach((entry, index) => {
     if (!Object.hasOwn(snapshot.species, entry.species) || onRoster.has(entry.species)) return;
     if (rosterNumbers.has(snapshot.species[entry.species].num)) return;
@@ -89,6 +94,7 @@ export function selectCandidates(
     // The `take` cheapest others: if this candidate is among the `take` cheapest overall, take one more and drop it.
     const reserve = index < take ? prefix[take + 1] - entry.price : prefix[take];
     if (entry.price + reserve <= ctx.remaining) candidates.push(entry);
+    else overBudget += 1;
   });
-  return { candidates, pricedPoolSize: priced.length };
+  return { candidates, pricedPoolSize: priced.length, overBudget };
 }
