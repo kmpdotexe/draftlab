@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "formatId": "gen9championsvgc2026regmb",
   "label": "Champions VGC 2026 Reg M-B",
-  "generatedAt": "2026-09-20T22:47:39.939Z",
+  "generatedAt": "2026-09-21T04:38:01.580Z",
   "showdown": {
     "packageVersion": "0.11.11",
     "mod": "champions",
@@ -27,5 +27,10 @@
     "url": "https://www.smogon.com/stats/2026-08/chaos/gen9championsvgc2026regmb-1630.json.gz",
     "isFallback": false
   },
-  "warnings": []
+  "warnings": [
+    "Dropped 15 restricted-species entries that are not legal in gen9championsvgc2026regmb (lightball: 15)",
+    "ogerponwellspringtera requires \"Wellspring Mask\", which is not a legal item in gen9championsvgc2026regmb",
+    "ogerponhearthflametera requires \"Hearthflame Mask\", which is not a legal item in gen9championsvgc2026regmb",
+    "ogerponcornerstonetera requires \"Cornerstone Mask\", which is not a legal item in gen9championsvgc2026regmb"
+  ]
 }

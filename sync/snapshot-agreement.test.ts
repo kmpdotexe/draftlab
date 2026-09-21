@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { toID } from '../src/domain/id';
 import type { Snapshot } from '../src/domain/types';
 
 // Cross-checks the committed snapshot against itself, so a loader/legality bug that makes the
@@ -57,6 +58,46 @@ describe('committed snapshot: usage and legality agree', () => {
         problems.push(`${speciesId} has usage ${String(entry.usage)}`);
       }
     }
+    expect(problems).toEqual([]);
+  });
+
+  it('is a version 2 snapshot with the legal item table', () => {
+    expect(snapshot.schemaVersion).toBe(2);
+    expect(Object.keys(snapshot.items).length).toBeGreaterThanOrEqual(100);
+    expect(snapshot.items.sitrusberry?.name).toBe('Sitrus Berry');
+    expect(snapshot.items.assaultvest).toBeUndefined(); // marked Past in the Champions mod
+    expect(snapshot.items.staraptite?.usableBy).toContain('staraptor');
+  });
+
+  it('every item a species runs in at least 1% of real sets is in the item table', () => {
+    const violations: string[] = [];
+    let checked = 0;
+    for (const [speciesId, entry] of Object.entries(snapshot.usage?.species ?? {})) {
+      for (const [itemId, share] of entry.items) {
+        if (share < 0.01 || itemId === 'nothing') continue; // Smogon's id for "no item"
+        checked += 1;
+        if (!Object.hasOwn(snapshot.items, itemId)) {
+          violations.push(`${speciesId} runs ${itemId} in ${percent(share)} of sets but it is not in the item table`);
+        }
+      }
+    }
+    // Floor so this cannot pass vacuously (977 pairs when this was written).
+    expect(checked).toBeGreaterThanOrEqual(500);
+    expect(violations).toEqual([]);
+  });
+
+  it('no species that appears in real usage requires an item the table lacks', () => {
+    const problems: string[] = [];
+    let withRequiredItem = 0;
+    for (const speciesId of Object.keys(snapshot.usage?.species ?? {})) {
+      const required = snapshot.species[speciesId]?.requiredItem;
+      if (!required) continue;
+      withRequiredItem += 1;
+      if (!Object.hasOwn(snapshot.items, toID(required))) {
+        problems.push(`${speciesId} requires ${required}, which is not in the item table`);
+      }
+    }
+    expect(withRequiredItem).toBeGreaterThanOrEqual(20); // 73 when this was written
     expect(problems).toEqual([]);
   });
 });
