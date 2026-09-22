@@ -2,6 +2,8 @@
 
 Date: 2026-09-21. Status: design approved in conversation; awaiting spec review.
 
+Superseded in part by `docs/superpowers/specs/2026-09-21-suggestion-engine-stage2-design.md` (stage 2): the "Combining and ranking" section and the `SignalScore` shape below are replaced there.
+
 Parents: `docs/superpowers/specs/2026-09-20-draft-lab-design.md` (the "Suggestion engine" section defines the four signals and the three stages), `docs/superpowers/specs/2026-09-20-league-draft-design.md` (draft state), `docs/superpowers/specs/2026-09-20-teambuilder-design.md` and `docs/superpowers/specs/2026-09-21-showdown-paste-design.md`.
 
 ## Purpose

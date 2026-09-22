@@ -1,4 +1,5 @@
 import type { ID } from '../domain/id';
+import { immunityOf, type Immunity } from './abilities';
 import { clamp, compareIds } from './math';
 import { TYPES, effectiveness, multiplier, severity, type TypeName } from './typechart';
 import type { EngineSnapshot, Reason, SignalOutput } from './types';
@@ -18,6 +19,13 @@ const MAX_ADDS = 2;
 export interface TypedMember {
   id: ID;
   types: readonly string[];
+  /** The type the member's expected ability makes it immune to, if any. */
+  immune?: Immunity;
+}
+
+/** The damage multiplier `type` does to a member: 0 when its ability makes it immune to `type`, else the typing's product. */
+function memberMultiplier(type: TypeName, member: Pick<TypedMember, 'types' | 'immune'>): number {
+  return member.immune?.type === type ? 0 : multiplier(type, member.types);
 }
 
 export interface DefensiveResult {
@@ -36,15 +44,19 @@ export interface DefensiveResult {
  * type; a real team does not fully work that way. And `DEFENSIVE_SCALE = 12` keeps the defensive score in roughly
  * 0.12 to 0.79 on real rosters, so the combined scores cluster around 0.3 to 0.6.
  */
-export function defensiveComponent(roster: readonly TypedMember[], candidate: readonly string[]): DefensiveResult {
+export function defensiveComponent(
+  roster: readonly TypedMember[],
+  candidate: readonly string[],
+  candidateImmune?: Immunity,
+): DefensiveResult {
   let raw = 0;
   const covers: Array<{ type: TypeName; relief: number }> = [];
   const adds: Array<{ type: TypeName; harm: number }> = [];
 
   for (const type of TYPES) {
-    const exposure = roster.reduce((sum, member) => sum + severity(multiplier(type, member.types)), 0);
+    const exposure = roster.reduce((sum, member) => sum + severity(memberMultiplier(type, member)), 0);
     const exposed = Math.max(0, exposure);
-    const own = severity(multiplier(type, candidate));
+    const own = severity(memberMultiplier(type, { types: candidate, immune: candidateImmune }));
     if (own < 0) {
       const relief = Math.min(exposed, -own);
       if (relief > 0) {
@@ -59,15 +71,18 @@ export function defensiveComponent(roster: readonly TypedMember[], candidate: re
   }
 
   const weakMembersOf = (type: TypeName): ID[] =>
-    roster.filter((member) => multiplier(type, member.types) > 1).map((member) => member.id);
+    roster.filter((member) => memberMultiplier(type, member) > 1).map((member) => member.id);
 
   covers.sort((a, b) => b.relief - a.relief || compareIds(a.type, b.type));
   adds.sort((a, b) => b.harm - a.harm || compareIds(a.type, b.type));
 
   const reasons: Reason[] = [];
   for (const { type } of covers.slice(0, MAX_COVERS)) {
-    const by = multiplier(type, candidate) === 0 ? 'immune' : 'resists';
-    reasons.push({ kind: 'covers-weakness', type, by, weakMembers: weakMembersOf(type) });
+    const weakMembers = weakMembersOf(type);
+    if (multiplier(type, candidate) === 0) reasons.push({ kind: 'covers-weakness', type, by: 'immune', weakMembers });
+    else if (candidateImmune?.type === type) {
+      reasons.push({ kind: 'covers-weakness', type, by: 'ability', weakMembers, ability: candidateImmune.ability });
+    } else reasons.push({ kind: 'covers-weakness', type, by: 'resists', weakMembers });
   }
   for (const { type } of adds.slice(0, MAX_ADDS)) {
     reasons.push({ kind: 'adds-weakness', type, weakMembers: weakMembersOf(type) });
@@ -121,10 +136,10 @@ export function typeSignal(roster: ID[], candidate: ID, snapshot: EngineSnapshot
   if (!Object.hasOwn(snapshot.species, candidate)) return { score: null, reasons: [] };
   const members: TypedMember[] = roster
     .filter((id) => Object.hasOwn(snapshot.species, id))
-    .map((id) => ({ id, types: snapshot.species[id].types }));
+    .map((id) => ({ id, types: snapshot.species[id].types, immune: immunityOf(id, snapshot) ?? undefined }));
   if (members.length === 0) return { score: null, reasons: [] };
 
-  const defensive = defensiveComponent(members, snapshot.species[candidate].types);
+  const defensive = defensiveComponent(members, snapshot.species[candidate].types, immunityOf(candidate, snapshot) ?? undefined);
   const offensive = offensiveComponent(
     members.map((entry) => attackingTypes(entry.id, snapshot)),
     attackingTypes(candidate, snapshot),

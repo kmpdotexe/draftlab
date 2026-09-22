@@ -26,10 +26,20 @@ function isPairList(rows: unknown): boolean {
   return true;
 }
 
+/** True for an array of strings; a hole counts as a bad element, as in `isPairList`. */
+function isStringList(value: unknown): value is string[] {
+  if (!Array.isArray(value)) return false;
+  for (let i = 0; i < value.length; i++) {
+    if (typeof value[i] !== 'string') return false;
+  }
+  return true;
+}
+
 const isUsageEntry = (value: unknown): value is UsageEntry =>
   isRecord(value) &&
   isFiniteNumber(value.usage) &&
   isFiniteNumber(value.weight) &&
+  isPairList(value.abilities) &&
   isPairList(value.moves) &&
   isPairList(value.teammates);
 
@@ -42,10 +52,11 @@ function filterEntries<T>(table: Record<string, unknown>, keep: (value: unknown)
 /**
  * The part of a snapshot the engine can read safely, or null when the `species` or `moves` table is missing. Entries
  * the engine could not read (a species without a numeric `num` and a `types` array, a move without a string `type`,
- * a string `category` and a numeric `basePower`, a usage entry without numeric `usage` and `weight` and `moves` and
- * `teammates` arrays whose rows are all `[id, number]` pairs) are dropped. A `usage` that is not an object with a
- * `species` table becomes null. Never throws on a plain-data (JSON) snapshot (an object with a throwing getter or a
- * Proxy can still throw) and never modifies the input; the result is a new object whose entries are the input's own.
+ * a string `category` and a numeric `basePower`, a usage entry without numeric `usage` and `weight` and `abilities`,
+ * `moves` and `teammates` arrays whose rows are all `[id, number]` pairs) are dropped. A `usage` that is not an object
+ * with a `species` table becomes null. A `learnsets` table is kept (minus entries that are not arrays of strings) only
+ * when the input has one. Never throws on a plain-data (JSON) snapshot (an object with a throwing getter or a Proxy can
+ * still throw) and never modifies the input; the result is a new object whose entries are the input's own.
  */
 export function sanitizeSnapshot(snapshot: unknown): EngineSnapshot | null {
   if (!isRecord(snapshot) || !isRecord(snapshot.species) || !isRecord(snapshot.moves)) return null;
@@ -56,9 +67,11 @@ export function sanitizeSnapshot(snapshot: unknown): EngineSnapshot | null {
     usage = { ...(given as unknown as UsageData), species: filterEntries(given.species, isUsageEntry) };
   }
 
-  return {
+  const result: EngineSnapshot = {
     species: filterEntries(snapshot.species, isSpeciesEntry),
     moves: filterEntries(snapshot.moves, isMoveEntry),
     usage,
   };
+  if (isRecord(snapshot.learnsets)) result.learnsets = filterEntries(snapshot.learnsets, isStringList);
+  return result;
 }

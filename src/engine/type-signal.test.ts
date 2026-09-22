@@ -309,3 +309,117 @@ describe('typeSignal', () => {
     expect(JSON.stringify({ s, roster })).toBe(before);
   });
 });
+
+describe('defensiveComponent: ability immunities', () => {
+  const levitate = { type: 'Ground', ability: 'Levitate' } as const;
+  const flashFire = { type: 'Fire', ability: 'Flash Fire' } as const;
+
+  it('lets a candidate\'s ability relieve a shared weakness like an immunity (Levitate Normal under Fire)', () => {
+    // Fire takes x2 from Ground, Rock, Water (X = 1 each). Normal is weak to Fighting (harm 0.25, unexposed). With Levitate it is
+    // immune to Ground (severity -2): relief min(1, 2) = 1. raw = 1 - 0.25 = 0.75, score = 0.5 + 0.75 / 12 = 0.5625.
+    const result = defensiveComponent([member('fire', 'Fire')], ['Normal'], levitate);
+    expect(result.raw).toBe(0.75);
+    expect(result.score).toBe(0.5625);
+    expect(result.reasons).toEqual([{ kind: 'covers-weakness', type: 'Ground', by: 'ability', weakMembers: ['fire'], ability: 'Levitate' }]);
+    // Without the ability the same candidate has no relief at all: raw = -0.25.
+    expect(defensiveComponent([member('fire', 'Fire')], ['Normal']).raw).toBe(-0.25);
+  });
+
+  it('lets the ability relieve up to the exposure, like an immunity: two Fire members give relief 2', () => {
+    // Exposure to Ground is 2 and the ability's severity is -2, so the relief is min(2, 2) = 2 (a resistance would give 1).
+    // raw = 2 - 0.25 = 1.75.
+    const result = defensiveComponent([member('f1', 'Fire'), member('f2', 'Fire')], ['Normal'], levitate);
+    expect(result.raw).toBe(1.75);
+    expect(result.reasons).toEqual([{ kind: 'covers-weakness', type: 'Ground', by: 'ability', weakMembers: ['f1', 'f2'], ability: 'Levitate' }]);
+  });
+
+  it('reports a type immunity as immune even when the ability is for the same type (Flying with Levitate)', () => {
+    // Fire roster: Ground relief min(1, 2) = 1; Flying is weak to Rock (harm 1, exposed), Electric and Ice (0.25 each, unexposed).
+    // raw = 1 - 1.5 = -0.5, score = 0.5 - 0.5 / 12.
+    const result = defensiveComponent([member('fire', 'Fire')], ['Flying'], levitate);
+    expect(result.raw).toBe(-0.5);
+    expect(result.score).toBeCloseTo(0.4583333, 7);
+    expect(result.reasons).toEqual([
+      { kind: 'covers-weakness', type: 'Ground', by: 'immune', weakMembers: ['fire'] },
+      { kind: 'adds-weakness', type: 'Rock', weakMembers: ['fire'] },
+    ]);
+  });
+
+  it('stops counting a roster member as weak to the type its ability absorbs (Flash Fire Grass, Bug candidate)', () => {
+    // Grass is weak to Bug, Fire, Flying, Ice, Poison. Flash Fire makes Fire severity -2, so the exposure to Fire is -2, not +1.
+    // Bug candidate: weak to Fire, Flying, Rock. Harm: Flying 1 (exposed), Fire 0.25 and Rock 0.25 (unexposed) = 1.5; nothing is
+    // covered (Bug resists Fighting, Grass, Ground, where the roster has no exposure). raw = -1.5, score = 0.375.
+    // Without Flash Fire the Fire harm is 1: raw = -2.25, score = 0.3125.
+    const withAbility = defensiveComponent([{ id: 'gr', types: ['Grass'], immune: flashFire }], ['Bug']);
+    expect(withAbility.raw).toBe(-1.5);
+    expect(withAbility.score).toBe(0.375);
+    expect(withAbility.reasons).toEqual([{ kind: 'adds-weakness', type: 'Flying', weakMembers: ['gr'] }]);
+    const without = defensiveComponent([member('gr', 'Grass')], ['Bug']);
+    expect(without.raw).toBe(-2.25);
+    expect(without.reasons).toEqual([
+      { kind: 'adds-weakness', type: 'Fire', weakMembers: ['gr'] },
+      { kind: 'adds-weakness', type: 'Flying', weakMembers: ['gr'] },
+    ]);
+  });
+
+  it('leaves a member with an absorbing ability out of weakMembers', () => {
+    // Fire exposure: three plain Grass members +1 each and the Flash Fire member -2: X = 1. Water resists Fire: relief 1.
+    // weakMembers for Fire lists g2, g3, g4 but not gf. Ice is covered too (all four are weak to it).
+    const roster = [{ id: 'gf', types: ['Grass'], immune: flashFire }, member('g2', 'Grass'), member('g3', 'Grass'), member('g4', 'Grass')];
+    const result = defensiveComponent(roster, ['Water']);
+    expect(result.reasons).toEqual([
+      { kind: 'covers-weakness', type: 'Fire', by: 'resists', weakMembers: ['g2', 'g3', 'g4'] },
+      { kind: 'covers-weakness', type: 'Ice', by: 'resists', weakMembers: ['gf', 'g2', 'g3', 'g4'] },
+    ]);
+    expect(result.raw).toBe(1.5);
+  });
+
+  it('is unchanged when no immunity is passed', () => {
+    expect(defensiveComponent([member('d1', 'Dragon')], ['Steel'], undefined).raw).toBe(2.25);
+  });
+});
+
+describe('typeSignal: ability immunities', () => {
+  const withAbilities = (species: Record<string, { types: string[]; abilities: string[] }>): EngineSnapshot => ({
+    species: Object.fromEntries(Object.entries(species).map(([id, entry]) => [id, speciesEntry(id, id, entry)])),
+    moves: {},
+    usage: null,
+  });
+
+  it('reads the candidate\'s immunity from its expected ability (Levitate Normal under Fire)', () => {
+    // Defensive 0.5625 (see above), offensive 0 (Normal hits nothing super effectively): 0.6 x 0.5625 = 0.3375.
+    // Without the ability the defensive score is 0.4791667 and the signal 0.2875.
+    const lev = typeSignal(['fire'], 'nrm', withAbilities({ fire: { types: ['Fire'], abilities: ['Blaze'] }, nrm: { types: ['Normal'], abilities: ['Levitate'] } }));
+    expect(lev.score).toBeCloseTo(0.3375, 7);
+    expect(lev.reasons).toEqual([{ kind: 'covers-weakness', type: 'Ground', by: 'ability', weakMembers: ['fire'], ability: 'Levitate' }]);
+    const plain = typeSignal(['fire'], 'nrm', withAbilities({ fire: { types: ['Fire'], abilities: ['Blaze'] }, nrm: { types: ['Normal'], abilities: ['Pressure'] } }));
+    expect(plain.score).toBeCloseTo(0.2875, 7);
+    expect(plain.reasons).toEqual([]);
+  });
+
+  it('reads a roster member\'s immunity from its expected ability (Flash Fire Grass, Bug candidate)', () => {
+    // Defensive 0.375 (see above); offensive 3 / 15 (Grass covers Ground, Rock, Water; Bug adds Dark, Grass, Psychic):
+    // 0.6 x 0.375 + 0.4 x 0.2 = 0.305. Without the ability: defensive 0.3125, so 0.6 x 0.3125 + 0.08 = 0.2675.
+    const s = withAbilities({ gr: { types: ['Grass'], abilities: ['Flash Fire'] }, bug: { types: ['Bug'], abilities: ['Pressure'] } });
+    const result = typeSignal(['gr'], 'bug', s);
+    expect(result.score).toBeCloseTo(0.305, 7);
+    expect(result.reasons).toEqual([
+      { kind: 'adds-weakness', type: 'Flying', weakMembers: ['gr'] },
+      { kind: 'adds-coverage', types: ['Dark', 'Grass', 'Psychic'] },
+    ]);
+    const plain = withAbilities({ gr: { types: ['Grass'], abilities: ['Pressure'] }, bug: { types: ['Bug'], abilities: ['Pressure'] } });
+    expect(typeSignal(['gr'], 'bug', plain).score).toBeCloseTo(0.2675, 7);
+  });
+
+  it('changes nothing for a species whose ability is not in the immunity table', () => {
+    const base = { fire: { types: ['Fire'], abilities: ['Blaze'] }, nrm: { types: ['Normal'], abilities: ['Pressure'] } };
+    const other = { fire: { types: ['Fire'], abilities: ['Intimidate'] }, nrm: { types: ['Normal'], abilities: ['Thick Fat'] } };
+    expect(typeSignal(['fire'], 'nrm', withAbilities(other))).toEqual(typeSignal(['fire'], 'nrm', withAbilities(base)));
+  });
+
+  it('ignores an available immunity ability that is not the expected one', () => {
+    // Two abilities and no usage data: there is no expected ability, so no immunity.
+    const two = withAbilities({ fire: { types: ['Fire'], abilities: ['Blaze'] }, nrm: { types: ['Normal'], abilities: ['Levitate', 'Pressure'] } });
+    expect(typeSignal(['fire'], 'nrm', two).score).toBeCloseTo(0.2875, 7);
+  });
+});

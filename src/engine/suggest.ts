@@ -1,7 +1,10 @@
 import type { ID } from '../domain/id';
 import { selectCandidates } from './candidates';
+import { combineSignals, rankAll } from './combine';
 import { liftSignal } from './lift-signal';
 import { clamp, compareIds } from './math';
+import { roleSignal } from './role-signal';
+import { rosterLacks } from './roles';
 import { sanitizeSnapshot } from './snapshot-check';
 import { typeSignal } from './type-signal';
 import {
@@ -18,7 +21,7 @@ import {
   type Suggestion,
 } from './types';
 
-export const DEFAULT_WEIGHTS: Record<SignalName, number> = { usageLift: 0.35, typeSynergy: 0.3 };
+export const DEFAULT_WEIGHTS: Record<SignalName, number> = { usageLift: 0.35, typeSynergy: 0.3, roleFit: 0.25 };
 export const DEFAULT_LIMIT = 20;
 /** Below this usage fraction a candidate gets an informational `low-usage` reason. */
 export const LOW_USAGE = 0.03;
@@ -64,7 +67,8 @@ function usageReason(snapshot: EngineSnapshot, id: ID): Reason | null {
 /**
  * Ranks the pool species that fit the budget by how well they pair with the roster, with typed reasons. Pure and
  * deterministic; never throws on a plain-data (JSON) context and snapshot (an object with a throwing getter or a
- * Proxy can still throw). See the stage 1 spec for the candidate rules, the two signals and the notes.
+ * Proxy can still throw). See the stage 1 and stage 2 specs for the candidate rules, the three signals, the
+ * rank-based combining and the notes. `Suggestion.score` is fit compared with the rest of the candidate pool.
  */
 export function suggest(ctx: SuggestContext, snapshot: EngineSnapshot, options: SuggestOptions = {}): SuggestResult {
   const early = (notes: Note[]): SuggestResult => ({ suggestions: [], considered: 0, notes });
@@ -84,33 +88,43 @@ export function suggest(ctx: SuggestContext, snapshot: EngineSnapshot, options: 
   const weights = resolveWeights(opts);
   const limit = typeof opts.limit === 'number' && Number.isInteger(opts.limit) && opts.limit > 0 ? opts.limit : DEFAULT_LIMIT;
 
+  // Every candidate's signals first: the percentile ranks are taken over the whole candidate pool.
+  const outputs: Array<Record<SignalName, SignalOutput>> = selection.candidates.map(({ species }) => ({
+    usageLift: liftSignal(roster, species, view.usage),
+    typeSynergy: typeSignal(roster, species, view),
+    roleFit: roleSignal(roster, species, view),
+  }));
+  const ranks = rankAll(
+    SIGNAL_NAMES,
+    outputs.map((output) => ({
+      usageLift: output.usageLift.score,
+      typeSynergy: output.typeSynergy.score,
+      roleFit: output.roleFit.score,
+    })),
+  );
+
   const scored: Suggestion[] = [];
   let unscored = 0;
-  for (const { species, price } of selection.candidates) {
-    const outputs: Record<SignalName, SignalOutput> = {
-      usageLift: liftSignal(roster, species, view.usage),
-      typeSynergy: typeSignal(roster, species, view),
-    };
-    const withData = SIGNAL_NAMES.filter((name) => outputs[name].score !== null);
-    const total = withData.reduce((sum, name) => sum + weights[name], 0);
-    if (withData.length === 0 || total <= 0) {
+  selection.candidates.forEach(({ species, price }, index) => {
+    const output = outputs[index];
+    const scores = { usageLift: output.usageLift.score, typeSynergy: output.typeSynergy.score, roleFit: output.roleFit.score };
+    const combined = combineSignals(SIGNAL_NAMES, scores, ranks[index], weights);
+    if (combined === null) {
       unscored += 1;
-      continue;
+      return;
     }
-
-    let score = 0;
-    const signals: SignalScore[] = SIGNAL_NAMES.map((signal) => {
-      const output = outputs[signal];
-      if (output.score === null) return { signal, score: null, weight: 0, reasons: output.reasons };
-      const weight = weights[signal] / total;
-      score += weight * output.score;
-      return { signal, score: output.score, weight, reasons: output.reasons };
-    });
+    const signals: SignalScore[] = SIGNAL_NAMES.map((signal) => ({
+      signal,
+      score: scores[signal],
+      rank: ranks[index][signal],
+      weight: combined.weights[signal],
+      reasons: output[signal].reasons,
+    }));
     const reasons = signals.flatMap((entry) => entry.reasons);
     const extra = usageReason(view, species);
     if (extra !== null) reasons.push(extra);
-    scored.push({ species, price, score: clamp(score, 0, 1), signals, reasons });
-  }
+    scored.push({ species, price, score: clamp(combined.score, 0, 1), signals, reasons });
+  });
 
   const notes: Note[] = [];
   if (selection.pricedPoolSize < ctx.openSlots) {
@@ -118,6 +132,8 @@ export function suggest(ctx: SuggestContext, snapshot: EngineSnapshot, options: 
   }
   if (selection.candidates.length === 0 && selection.overBudget > 0) notes.push({ kind: 'no-affordable-candidates' });
   if (view.usage === null) notes.push({ kind: 'no-usage-data' });
+  const lacked = rosterLacks(roster, view);
+  if (lacked.length > 0) notes.push({ kind: 'roster-lacks-roles', roles: lacked });
   if (unscored > 0) notes.push({ kind: 'unscored-candidates', count: unscored });
 
   scored.sort((a, b) => b.score - a.score || a.price - b.price || compareIds(a.species, b.species));

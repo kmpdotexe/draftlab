@@ -13,13 +13,14 @@ const valid = (): EngineSnapshot => ({
   },
   moves: { tackle: moveEntry('tackle', 'tackle') },
   usage: usageData([usageEntry('a', { teammates: [['b', 10]] }), usageEntry('b')]),
+  learnsets: { a: ['tackle'], b: [] },
 });
 
 /** Runs the check on a snapshot built from `valid()` with some fields replaced by junk. */
 const check = (overrides: Record<string, unknown>) => sanitizeSnapshot({ ...valid(), ...overrides });
 
 describe('sanitizeSnapshot: the tables', () => {
-  it('returns a new object with equal content for a valid snapshot, and copies usage', () => {
+  it('returns a new object with equal content for a valid snapshot, and copies usage and learnsets', () => {
     const input = valid();
     const result = sanitizeSnapshot(input);
     expect(result).toEqual(input);
@@ -27,8 +28,16 @@ describe('sanitizeSnapshot: the tables', () => {
     expect(result?.species).not.toBe(input.species);
     expect(result?.moves).not.toBe(input.moves);
     expect(result?.usage).not.toBe(input.usage);
+    expect(result?.learnsets).not.toBe(input.learnsets);
     // Entries themselves are kept by reference.
     expect(result?.species.a).toBe(input.species.a);
+  });
+
+  it('omits learnsets entirely when the input has none, and drops entries that are not string arrays', () => {
+    const { learnsets, ...withoutLearnsets } = valid();
+    expect(Object.hasOwn(sanitizeSnapshot(withoutLearnsets) ?? {}, 'learnsets')).toBe(false);
+    const result = sanitizeSnapshot({ ...valid(), learnsets: { a: ['tackle', 5], b: 'x', c: ['ok'] } });
+    expect(result?.learnsets).toEqual({ c: ['ok'] });
   });
 
   it('returns null unless the snapshot and its species and moves tables are plain objects', () => {
@@ -134,7 +143,7 @@ describe('sanitizeSnapshot: usage rows', () => {
     ['a sparse row', [new Array(2)]],
   ];
 
-  for (const field of ['teammates', 'moves'] as const) {
+  for (const field of ['teammates', 'moves', 'abilities'] as const) {
     it(`drops a usage entry whose ${field} has a row that is not an [id, number] pair, and keeps a good entry`, () => {
       for (const [label, rows] of badRows) {
         const good = usageEntry('good');

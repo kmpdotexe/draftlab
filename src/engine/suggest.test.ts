@@ -5,17 +5,26 @@ import { usageData, usageEntry } from './test-support';
 import type { EngineSnapshot, SuggestContext, SuggestOptions } from './types';
 
 /**
- * A small universe. Roster member `dra1` (Dragon, weight 100, usage 0.5). Candidates:
+ * A small universe. Roster member `dra1` (Dragon, weight 100, usage 0.5, runs Fake Out at 60%). Candidates:
  *   stla, stlb, stlc: Steel twins, usage 0.1, co-occurrence 20 with dra1 -> lift 20 / (100 x 0.1) = 2
  *   grd: Ground, usage 0.2, co 5 -> lift 5 / (100 x 0.2) = 0.25
  *   nod: Normal, no usage entry (no lift)
- * Signal scores (see type-signal.test.ts for the type arithmetic):
+ * None of the five candidates has a usage entry with any role moves, so `roleFit` is 0 for all of them: the roster
+ * lacks nine roles (dra1's Fake Out covers `fakeOut`), and nobody fills any.
+ * Absolute per-signal scores (see type-signal.test.ts for the type arithmetic):
  *   lift score: stl* (log2 2 + 3) / 6 = 0.6666667; grd (log2 0.25 + 3) / 6 = 0.1666667
  *   type score: stl* 0.4830882; grd 0.3426471; nod 0.2875
- * Default weights 0.35 and 0.3 re-normalize to 0.5384615 and 0.4615385 when both signals have data:
- *   stl* 0.5384615 x 0.6666667 + 0.4615385 x 0.4830882 = 0.5819382
- *   grd  0.5384615 x 0.1666667 + 0.4615385 x 0.3426471 = 0.2478884
- *   nod  type only: 0.2875
+ *   role score: 0 for every candidate (see above)
+ * Percentile ranks (mid-rank, ties share the average). Lift has data for stla, stlb, stlc and grd (n = 4): the three
+ * tied Steels have `below` = 1 (only grd is smaller) and `equal` = 3, so rank = (1 + (3-1)/2) / 3 = 0.6666667; grd is
+ * the smallest, rank 0. Type has data for all 5 (n = 5): stl* highest, rank (4 + 0/2)/4... directly, stl* is strictly
+ * above nod and grd with no ties, so rank = 3/4 = 0.75; grd rank 1/4 = 0.25; nod lowest, rank 0. Role is 0 for every
+ * candidate (n = 5, all tied): rank = (0 + (5-1)/2)/4 = 0.5 for everyone.
+ * Default weights 0.35 / 0.3 / 0.25 all have data for stl* and grd, so they re-normalize to themselves (sum 0.9):
+ *   stl* = (0.35 x 0.6666667 + 0.3 x 0.75 + 0.25 x 0.5) / 0.9 = 0.6481481 (weights 0.3888889 / 0.3333333 / 0.2777778)
+ *   grd  = (0.35 x 0 + 0.3 x 0.25 + 0.25 x 0.5) / 0.9 = 0.2222222
+ * nod has no lift, so its lift weight is halved (MISSING_WEIGHT_FACTOR 0.5): weights 0.175, 0.3, 0.25, total 0.725.
+ *   nod = (0.175 x 0.5 + 0.3 x 0 + 0.25 x 0.5) / 0.725 = 0.2931034 (weights 0.2413793 / 0.4137931 / 0.3448276)
  */
 const snapshot = (): EngineSnapshot => ({
   species: {
@@ -28,7 +37,7 @@ const snapshot = (): EngineSnapshot => ({
   },
   moves: {},
   usage: usageData([
-    usageEntry('dra1', { weight: 100, usage: 0.5, teammates: [['stla', 20], ['stlb', 20], ['stlc', 20], ['grd', 5]] }),
+    usageEntry('dra1', { weight: 100, usage: 0.5, moves: [['fakeout', 0.6]], teammates: [['stla', 20], ['stlb', 20], ['stlc', 20], ['grd', 5]] }),
     usageEntry('stla', { usage: 0.1 }),
     usageEntry('stlb', { usage: 0.1 }),
     usageEntry('stlc', { usage: 0.1 }),
@@ -45,73 +54,74 @@ const ctx = (overrides: Partial<SuggestContext> = {}): SuggestContext => ({
   ...overrides,
 });
 const order = (result: ReturnType<typeof suggest>) => result.suggestions.map((s) => s.species);
+const LACKS_NINE = { kind: 'roster-lacks-roles', roles: ['redirection', 'speedControl', 'intimidate', 'weatherTerrain', 'pivot', 'screens', 'support', 'priority', 'disruption'] } as const;
 
 describe('suggest: ranking', () => {
   it('ranks by combined score, then price ascending, then id ascending', () => {
     const result = suggest(ctx(), snapshot());
     // stlb and stlc tie with stla on score; stlb and stlc cost 6, stla costs 10; stlb comes before stlc by id.
     expect(order(result)).toEqual(['stlb', 'stlc', 'stla', 'nod', 'grd']);
-    expect(result.suggestions[0].score).toBeCloseTo(0.5819382, 6);
-    expect(result.suggestions[3].score).toBeCloseTo(0.2875, 6);
-    expect(result.suggestions[4].score).toBeCloseTo(0.2478884, 6);
+    expect(result.suggestions[0].score).toBeCloseTo(0.6481481, 6);
+    expect(result.suggestions[3].score).toBeCloseTo(0.2931034, 6);
+    expect(result.suggestions[4].score).toBeCloseTo(0.2222222, 6);
     expect(result.considered).toBe(5);
-    expect(result.notes).toEqual([]);
+    expect(result.notes).toEqual([LACKS_NINE]);
   });
 
-  it('gives every suggestion both signals in a fixed order, with effective weights and reasons', () => {
+  it('gives every suggestion all three signals in a fixed order, with score, rank, effective weight and reasons', () => {
     const top = suggest(ctx(), snapshot()).suggestions[0];
     expect(top.species).toBe('stlb');
     expect(top.price).toBe(6);
-    expect(top.signals.map((s) => s.signal)).toEqual(['usageLift', 'typeSynergy']);
-    expect(top.signals[0].score).toBeCloseTo(0.6666667, 6);
-    expect(top.signals[0].weight).toBeCloseTo(0.5384615, 6);
+    expect(top.signals.map((s) => s.signal)).toEqual(['usageLift', 'typeSynergy', 'roleFit']);
+    expect(top.signals[0]).toMatchObject({ score: expect.closeTo(0.6666667, 6), rank: expect.closeTo(0.6666667, 6), weight: expect.closeTo(0.3888889, 6) });
     expect(top.signals[0].reasons).toEqual([{ kind: 'pairs-often-with', with: 'dra1', lift: 2 }]);
-    expect(top.signals[1].score).toBeCloseTo(0.4830882, 6);
-    expect(top.signals[1].weight).toBeCloseTo(0.4615385, 6);
+    expect(top.signals[1]).toMatchObject({ score: expect.closeTo(0.4830882, 6), rank: 0.75, weight: expect.closeTo(0.3333333, 6) });
     expect(top.signals[1].reasons).toEqual([
       { kind: 'covers-weakness', type: 'Dragon', by: 'resists', weakMembers: ['dra1'] },
       { kind: 'covers-weakness', type: 'Fairy', by: 'resists', weakMembers: ['dra1'] },
       { kind: 'covers-weakness', type: 'Ice', by: 'resists', weakMembers: ['dra1'] },
       { kind: 'adds-coverage', types: ['Fairy', 'Ice', 'Rock'] },
     ]);
-    // Usage 0.1 is above the low-usage line, so there is no informational reason; the flat list is the signals' reasons in order.
-    expect(top.reasons).toEqual([...top.signals[0].reasons, ...top.signals[1].reasons]);
+    expect(top.signals[2]).toEqual({ signal: 'roleFit', score: 0, rank: 0.5, weight: expect.closeTo(0.2777778, 6), reasons: [] });
+    // Usage 0.1 is above the low-usage line, so there is no informational reason; the flat list is the three signals' reasons in order.
+    expect(top.reasons).toEqual([...top.signals[0].reasons, ...top.signals[1].reasons, ...top.signals[2].reasons]);
   });
 
-  it('uses only the signals that have data: a candidate with no usage entry is scored by type synergy alone', () => {
+  it('uses only the signals that have data: a candidate with no usage entry has null lift but a real rank', () => {
     const nod = suggest(ctx(), snapshot()).suggestions.find((s) => s.species === 'nod');
     expect(nod).toBeDefined();
-    expect(nod?.signals[0]).toEqual({ signal: 'usageLift', score: null, weight: 0, reasons: [] });
-    expect(nod?.signals[1].score).toBeCloseTo(0.2875, 6);
-    expect(nod?.signals[1].weight).toBe(1);
-    expect(nod?.reasons).toEqual([{ kind: 'no-ladder-usage' }]);
+    expect(nod?.signals[0]).toMatchObject({ signal: 'usageLift', score: null, rank: 0.5, weight: expect.closeTo(0.2413793, 6) });
+    expect(nod?.signals[1]).toMatchObject({ score: expect.closeTo(0.2875, 6), rank: 0, weight: expect.closeTo(0.4137931, 6) });
+    expect(nod?.signals[2]).toEqual({ signal: 'roleFit', score: 0, rank: 0.5, weight: expect.closeTo(0.3448276, 6), reasons: [] });
+    expect(nod?.reasons.at(-1)).toEqual({ kind: 'no-ladder-usage' });
   });
 });
 
 describe('suggest: weights', () => {
   it('lets the options override the default weights', () => {
-    // Lift only: stl* 0.6666667, grd 0.1666667; nod has no lift and the type weight is 0, so nod has no usable signal.
-    const liftOnly = suggest(ctx(), snapshot(), { weights: { usageLift: 1, typeSynergy: 0 } });
+    // Lift only: stl* rank 0.6666667, grd rank 0; nod has no lift and every other weight is 0, so nod is unscored.
+    const liftOnly = suggest(ctx(), snapshot(), { weights: { usageLift: 1, typeSynergy: 0, roleFit: 0 } });
     expect(order(liftOnly)).toEqual(['stlb', 'stlc', 'stla', 'grd']);
     expect(liftOnly.suggestions[0].score).toBeCloseTo(0.6666667, 6);
-    expect(liftOnly.suggestions[3].score).toBeCloseTo(0.1666667, 6);
+    expect(liftOnly.suggestions[3].score).toBeCloseTo(0, 6);
     expect(liftOnly.considered).toBe(5);
-    expect(liftOnly.notes).toEqual([{ kind: 'unscored-candidates', count: 1 }]);
+    expect(liftOnly.notes).toEqual([LACKS_NINE, { kind: 'unscored-candidates', count: 1 }]);
 
-    // Equal weights: stl* 0.5 x 0.6666667 + 0.5 x 0.4830882 = 0.5748775.
-    const equal = suggest(ctx(), snapshot(), { weights: { usageLift: 0.5, typeSynergy: 0.5 } });
-    expect(equal.suggestions[0].score).toBeCloseTo(0.5748775, 6);
-    // A zero weight on the type signal leaves the lift signal at full weight, and vice versa.
-    const zeroType = suggest(ctx(), snapshot(), { weights: { typeSynergy: 0 } });
+    // Equal weights on lift and type (role at 0): stl* (0.6666667 + 0.75) / 2 = 0.7083333.
+    const equal = suggest(ctx(), snapshot(), { weights: { usageLift: 0.5, typeSynergy: 0.5, roleFit: 0 } });
+    expect(equal.suggestions[0].score).toBeCloseTo(0.7083333, 6);
+    // A zero weight on type and role leaves the lift signal alone: stl* rank 0.6666667.
+    const zeroType = suggest(ctx(), snapshot(), { weights: { typeSynergy: 0, roleFit: 0 } });
     expect(zeroType.suggestions[0].score).toBeCloseTo(0.6666667, 6);
-    const zeroLift = suggest(ctx(), snapshot(), { weights: { usageLift: 0 } });
-    expect(zeroLift.suggestions[0].score).toBeCloseTo(0.4830882, 6);
+    // A zero weight on lift and role leaves the type signal alone: stl* rank 0.75.
+    const zeroLift = suggest(ctx(), snapshot(), { weights: { usageLift: 0, roleFit: 0 } });
+    expect(zeroLift.suggestions[0].score).toBeCloseTo(0.75, 6);
   });
 
   it('ignores weights that are not finite non-negative numbers', () => {
     const baseline = suggest(ctx(), snapshot());
     for (const weights of [
-      { usageLift: -1, typeSynergy: Number.NaN },
+      { usageLift: -1, typeSynergy: Number.NaN, roleFit: -1 },
       { usageLift: 'x', typeSynergy: Number.POSITIVE_INFINITY },
       null,
       5,
@@ -204,7 +214,7 @@ describe('suggest: informational usage reasons', () => {
   });
 
   it('never changes the score', () => {
-    // lowu, edge and justunder are Normal-typed twins of nod with no stored pair: all four score alike.
+    // lowu, edge, justunder and nod are Normal-typed twins with no stored pair and no role moves: all four score alike.
     const result = suggest(wide(), withLow());
     const scores = new Set(result.suggestions.map((s) => s.score));
     expect(scores.size).toBe(1);
@@ -255,7 +265,7 @@ describe('suggest: notes and early results', () => {
   it('says cannot-fill-roster when the priced pool is smaller than the open slots, and still ranks', () => {
     // 6 open slots, 5 priced species: each candidate needs its own price plus all four others (29 in total).
     const result = suggest(ctx({ openSlots: 6, remaining: 29 }), snapshot());
-    expect(result.notes).toEqual([{ kind: 'cannot-fill-roster', poolSize: 5, openSlots: 6 }]);
+    expect(result.notes).toEqual([{ kind: 'cannot-fill-roster', poolSize: 5, openSlots: 6 }, LACKS_NINE]);
     expect(result.suggestions).toHaveLength(5);
     expect(suggest(ctx({ openSlots: 6, remaining: 28 }), snapshot()).suggestions).toEqual([]);
   });
@@ -264,22 +274,23 @@ describe('suggest: notes and early results', () => {
     const s = snapshot();
     s.usage = null;
     const result = suggest(ctx(), s);
-    expect(result.notes).toEqual([{ kind: 'no-usage-data' }]);
+    // Without usage data dra1 has no tags at all: the roster lacks all ten roles.
+    expect(result.notes).toEqual([{ kind: 'no-usage-data' }, { kind: 'roster-lacks-roles', roles: [...LACKS_NINE.roles.slice(0, 0), 'fakeOut', ...LACKS_NINE.roles] }]);
     expect(result.suggestions).toHaveLength(5);
     for (const suggestion of result.suggestions) expect(suggestion.signals[0].score).toBeNull();
-    expect(result.suggestions[0].score).toBeCloseTo(0.4830882, 6); // type synergy alone
   });
 
   it('lists the notes in a fixed order', () => {
     const s = snapshot();
     s.usage = null;
-    const result = suggest(ctx({ openSlots: 6 }), s, { weights: { typeSynergy: 0 } });
-    // Nothing is scorable (no usage data and the type weight is 0): all 5 candidates are unscored.
+    const result = suggest(ctx({ openSlots: 6 }), s, { weights: { typeSynergy: 0, roleFit: 0 } });
+    // Nothing is scorable (no usage data and the type and role weights are 0): all 5 candidates are unscored.
     expect(result.suggestions).toEqual([]);
     expect(result.considered).toBe(5);
     expect(result.notes).toEqual([
       { kind: 'cannot-fill-roster', poolSize: 5, openSlots: 6 },
       { kind: 'no-usage-data' },
+      { kind: 'roster-lacks-roles', roles: ['fakeOut', ...LACKS_NINE.roles] },
       { kind: 'unscored-candidates', count: 5 },
     ]);
   });
@@ -291,17 +302,17 @@ describe('suggest: no-affordable-candidates', () => {
     expect(suggest(ctx({ openSlots: 3, remaining: 12 }), snapshot())).toEqual({
       suggestions: [],
       considered: 0,
-      notes: [{ kind: 'no-affordable-candidates' }],
+      notes: [{ kind: 'no-affordable-candidates' }, LACKS_NINE],
     });
   });
 
   it('says nothing when some candidate fits, or when the filters (not the budget) left nobody', () => {
     // At 14 with 3 open slots stla (17) is over budget but four others fit.
-    expect(suggest(ctx({ openSlots: 3, remaining: 14 }), snapshot()).notes).toEqual([]);
-    // Nothing has 90% usage: everyone is removed by the filter, none by the budget.
+    expect(suggest(ctx({ openSlots: 3, remaining: 14 }), snapshot()).notes).toEqual([LACKS_NINE]);
+    // Nothing has 90% usage: everyone is removed by the filter, none by the budget. No candidates means no role-lacks note either.
     const filtered = suggest(ctx(), snapshot(), { minUsage: 0.9 });
     expect(filtered.suggestions).toEqual([]);
-    expect(filtered.notes).toEqual([]);
+    expect(filtered.notes).toEqual([LACKS_NINE]);
   });
 
   it('comes after cannot-fill-roster and before no-usage-data', () => {
@@ -312,7 +323,39 @@ describe('suggest: no-affordable-candidates', () => {
       { kind: 'cannot-fill-roster', poolSize: 5, openSlots: 6 },
       { kind: 'no-affordable-candidates' },
       { kind: 'no-usage-data' },
+      { kind: 'roster-lacks-roles', roles: ['fakeOut', ...LACKS_NINE.roles] },
     ]);
+  });
+});
+
+describe('suggest: roster-lacks-roles', () => {
+  it('says nothing when the roster lacks no role', () => {
+    const s = snapshot();
+    if (s.usage === null) throw new Error('fixture has usage');
+    s.usage.species.dra1 = usageEntry('dra1', {
+      weight: 100,
+      usage: 0.5,
+      teammates: [['stla', 20], ['stlb', 20], ['stlc', 20], ['grd', 5]],
+      moves: [
+        ['fakeout', 0.6], ['followme', 0.5], ['tailwind', 0.5], ['uturn', 0.5],
+        ['reflect', 0.5], ['helpinghand', 0.5], ['suckerpunch', 0.5], ['encore', 0.5],
+      ],
+    });
+    s.species.dra1.abilities = ['Intimidate'];
+    // Intimidate and weatherTerrain still need an ability tag; dra1 covers everything but those two.
+    expect(suggest(ctx(), s).notes).toEqual([{ kind: 'roster-lacks-roles', roles: ['weatherTerrain'] }]);
+  });
+
+  it('lists the roles in table order, not the order the roster fills them', () => {
+    const s = snapshot();
+    if (s.usage === null) throw new Error('fixture has usage');
+    s.usage.species.dra1 = usageEntry('dra1', { weight: 100, usage: 0.5, teammates: [['stla', 20], ['stlb', 20], ['stlc', 20], ['grd', 5]], moves: [['encore', 0.6], ['fakeout', 0.6]] });
+    const result = suggest(ctx(), s);
+    const note = result.notes.find((n) => n.kind === 'roster-lacks-roles');
+    expect(note).toEqual({
+      kind: 'roster-lacks-roles',
+      roles: ['redirection', 'speedControl', 'intimidate', 'weatherTerrain', 'pivot', 'screens', 'support', 'priority'],
+    });
   });
 });
 
@@ -329,7 +372,7 @@ describe('suggest: a malformed snapshot', () => {
 
   it('treats malformed usage as no usage data', () => {
     const result = suggest(ctx(), asSnapshot({ ...snapshot(), usage: undefined }));
-    expect(result.notes).toEqual([{ kind: 'no-usage-data' }]);
+    expect(result.notes).toEqual([{ kind: 'no-usage-data' }, { kind: 'roster-lacks-roles', roles: ['fakeOut', ...LACKS_NINE.roles] }]);
     expect(result.suggestions).toHaveLength(5);
     for (const suggestion of result.suggestions) expect(suggestion.signals[0].score).toBeNull();
   });

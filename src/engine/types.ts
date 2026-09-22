@@ -2,13 +2,32 @@ import type { ID } from '../domain/id';
 import type { Snapshot } from '../domain/types';
 import type { TypeName } from './typechart';
 
-/** The slice of the snapshot the engine reads. A full `Snapshot` satisfies it. */
-export type EngineSnapshot = Pick<Snapshot, 'species' | 'moves' | 'usage'>;
+/**
+ * The slice of the snapshot the engine reads. A full `Snapshot` satisfies it. `learnsets` is optional: without it a
+ * species is never credited for a role it merely can learn.
+ */
+export type EngineSnapshot = Pick<Snapshot, 'species' | 'moves' | 'usage'> & { learnsets?: Snapshot['learnsets'] };
 
-export type SignalName = 'usageLift' | 'typeSynergy';
+/** A job a team needs done. The role table (`roles.ts`) says which moves and abilities fill each one. */
+export type RoleId =
+  | 'fakeOut'
+  | 'redirection'
+  | 'speedControl'
+  | 'intimidate'
+  | 'weatherTerrain'
+  | 'pivot'
+  | 'screens'
+  | 'support'
+  | 'priority'
+  | 'disruption';
 
-/** Both signals, in the order they appear in every `Suggestion.signals`. */
-export const SIGNAL_NAMES: readonly SignalName[] = ['usageLift', 'typeSynergy'];
+/** Where a role tag comes from: a move the species runs, its expected ability, or a signature move it can learn. */
+export type RoleSource = 'runs' | 'ability' | 'can-learn';
+
+export type SignalName = 'usageLift' | 'typeSynergy' | 'roleFit';
+
+/** All signals, in the order they appear in every `Suggestion.signals`. */
+export const SIGNAL_NAMES: readonly SignalName[] = ['usageLift', 'typeSynergy', 'roleFit'];
 
 /** The draft as the engine sees it. `contextFor` builds one from a derived `DraftState`. */
 export interface SuggestContext {
@@ -37,9 +56,12 @@ export type Reason =
   | { kind: 'pairs-often-with'; with: ID; lift: number }
   | { kind: 'pairs-rarely-with'; with: ID; lift: number }
   | { kind: 'lift-coverage'; covered: number; of: number }
-  | { kind: 'covers-weakness'; type: TypeName; by: 'resists' | 'immune'; weakMembers: ID[] }
+  /** `ability` is present exactly when `by` is `'ability'`: the candidate's expected ability makes it immune. */
+  | { kind: 'covers-weakness'; type: TypeName; by: 'resists' | 'immune' | 'ability'; weakMembers: ID[]; ability?: string }
   | { kind: 'adds-weakness'; type: TypeName; weakMembers: ID[] }
   | { kind: 'adds-coverage'; types: TypeName[] }
+  /** `via` is the move id (`runs`, `can-learn`) or the ability name (`ability`). */
+  | { kind: 'fills-role'; role: RoleId; source: RoleSource; via: string }
   | { kind: 'low-usage'; usage: number }
   | { kind: 'no-ladder-usage' };
 
@@ -56,6 +78,8 @@ export type Note =
   /** Species that pass every rule except the budget existed, but none fits it. */
   | { kind: 'no-affordable-candidates' }
   | { kind: 'no-usage-data' }
+  /** The roles no roster member covers by a move it runs or its expected ability (table order). */
+  | { kind: 'roster-lacks-roles'; roles: RoleId[] }
   | { kind: 'unscored-candidates'; count: number };
 
 /** What one signal says about one candidate. `score` is null when the signal has no data. */
@@ -66,9 +90,11 @@ export interface SignalOutput {
 
 export interface SignalScore {
   signal: SignalName;
-  /** In [0, 1], or null when the signal has no data for this candidate. */
+  /** The signal's absolute score in [0, 1], or null when it has no data for this candidate. */
   score: number | null;
-  /** The effective (re-normalized) weight; 0 when score is null. */
+  /** The value that was combined: the candidate's percentile rank for this signal, or 0.5 when the signal has no data. */
+  rank: number;
+  /** The effective (re-normalized) weight, including the reduced weight of a missing signal. */
   weight: number;
   reasons: Reason[];
 }
@@ -76,7 +102,7 @@ export interface SignalScore {
 export interface Suggestion {
   species: ID;
   price: number;
-  /** In [0, 1]: the weighted sum of the signals that had data. */
+  /** In [0, 1]: fit compared with the rest of the candidate pool (the weighted sum of the signals' percentile ranks). */
   score: number;
   /** One entry per signal in `SIGNAL_NAMES` order (index by `signal`, not by position). */
   signals: SignalScore[];

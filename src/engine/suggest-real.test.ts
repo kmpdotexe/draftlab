@@ -2,7 +2,11 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { ID } from '../domain/id';
 import type { Snapshot } from '../domain/types';
+import { immunityOf } from './abilities';
+import { rosterLacks } from './roles';
+import { sanitizeSnapshot } from './snapshot-check';
 import { suggest } from './suggest';
+import { defensiveComponent } from './type-signal';
 import type { SuggestContext, Suggestion } from './types';
 
 const snapshot = JSON.parse(
@@ -58,22 +62,26 @@ describe.each([
   const result = suggest(ctx, snapshot, { limit: 1000 });
   const candidateIds = ctx.pool.filter((id) => !sharesDexNumber(roster, id));
   const expectedIds = candidateIds.filter((id) => affordable(ctx, id));
+  const lacked = rosterLacks(roster, snapshot);
 
-  it('returns exactly the affordable candidates, with no notes', () => {
+  it('returns exactly the affordable candidates, with no note but roster-lacks-roles', () => {
     expect(expectedIds.length).toBeGreaterThanOrEqual(300);
     expect(candidateIds.length - expectedIds.length).toBeGreaterThanOrEqual(1); // the budget really excludes someone
-    expect(result.notes).toEqual([]);
+    expect(result.notes).toEqual(lacked.length > 0 ? [{ kind: 'roster-lacks-roles', roles: lacked }] : []);
     expect(result.considered).toBe(expectedIds.length);
     expect(result.suggestions.map((s) => s.species).sort()).toEqual([...expectedIds].sort());
   });
 
-  it('gives every suggestion a valid score, the right price, and both signals in order', () => {
+  it('gives every suggestion a valid score, the right price, all three signals in order, and weights that sum to 1', () => {
     for (const s of result.suggestions) {
       expect(s.score, s.species).toBeGreaterThanOrEqual(0);
       expect(s.score, s.species).toBeLessThanOrEqual(1);
       expect(s.price, s.species).toBe(PRICES[s.species]);
-      expect(s.signals.map((signal) => signal.signal), s.species).toEqual(['usageLift', 'typeSynergy']);
+      expect(s.signals.map((signal) => signal.signal), s.species).toEqual(['usageLift', 'typeSynergy', 'roleFit']);
       expect(s.signals[1].score, s.species).not.toBeNull(); // a non-empty roster always has type data
+      expect(s.signals[2].score, s.species).not.toBeNull(); // the roster lacks something for every real candidate here
+      const weightSum = s.signals.reduce((sum, signal) => sum + signal.weight, 0);
+      expect(weightSum, s.species).toBeCloseTo(1, 9);
     }
   });
 
@@ -85,25 +93,28 @@ describe.each([
     }
   });
 
-  it('scores candidates without usage data by type synergy alone, and has plenty of both kinds', () => {
+  it('has plenty of candidates with and without usage data, and keeps the missing signal\'s weight positive but reduced', () => {
     const typeOnly = result.suggestions.filter((s) => s.signals[0].score === null);
     const both = result.suggestions.filter((s) => s.signals[0].score !== null);
     expect(typeOnly.length).toBeGreaterThanOrEqual(100); // 132 when this was written
     expect(both.length).toBeGreaterThanOrEqual(150); // about 215 when this was written
-    for (const s of typeOnly) expect(s.signals[1].weight, s.species).toBe(1);
+    for (const s of typeOnly) {
+      expect(s.signals[0].weight, s.species).toBeGreaterThan(0); // MISSING_WEIGHT_FACTOR still counts it, just less
+      expect(s.signals[0].weight, s.species).toBeLessThan(s.signals[1].weight + s.signals[2].weight);
+    }
   });
 
-  it('explains every suggestion that scores above 0.5', () => {
-    const strong = result.suggestions.filter((s) => s.score > 0.5);
-    expect(strong.length).toBeGreaterThanOrEqual(1);
-    // A score above 0.5 needs lift above 1 (a pairs-often-with reason) or a positive defensive raw score or offensive coverage.
-    for (const s of strong) expect(s.signals.some((signal) => signal.reasons.length > 0), s.species).toBe(true);
+  it('explains every suggestion in the top 20 (evidence leads: nothing reaches the shown list with no reasons at all)', () => {
+    const top20 = suggest(ctx, snapshot, { limit: 20 }).suggestions;
+    expect(top20.length).toBe(20);
+    for (const s of top20) expect(s.signals.some((signal) => signal.reasons.length > 0), s.species).toBe(true);
   });
 });
 
 describe('suggestions on the real snapshot: filters, dex numbers, notes and determinism', () => {
   const pair: ID[] = ['incineroar', 'kingambit'];
   const generous = rosterContext(pair, 200, 5);
+  const pairLacks = rosterLacks(pair, snapshot);
 
   it('honours the usage filters', () => {
     const niche = suggest(generous, snapshot, { maxUsage: 0.03, limit: 1000 });
@@ -144,9 +155,16 @@ describe('suggestions on the real snapshot: filters, dex numbers, notes and dete
     }
   });
 
-  it('says no-usage-data and drops the lift signal when the snapshot has no usage', () => {
+  it('says roster-lacks-roles for the pair (they cover fakeOut, ability and priority tags, not everything)', () => {
+    expect(pairLacks.length).toBeGreaterThan(0);
+    expect(pairLacks.length).toBeLessThan(10);
+    const result = suggest(generous, snapshot, { limit: 1000 });
+    expect(result.notes).toEqual([{ kind: 'roster-lacks-roles', roles: pairLacks }]);
+  });
+
+  it('says no-usage-data and drops the lift signal when the snapshot has no usage, and lacks every role', () => {
     const result = suggest(generous, { ...snapshot, usage: null }, { limit: 1000 });
-    expect(result.notes).toEqual([{ kind: 'no-usage-data' }]);
+    expect(result.notes).toEqual([{ kind: 'no-usage-data' }, { kind: 'roster-lacks-roles', roles: rosterLacks(pair, { ...snapshot, usage: null }) }]);
     expect(result.suggestions.length).toBeGreaterThan(300);
     for (const s of result.suggestions) expect(s.signals[0].score, s.species).toBeNull();
   });
@@ -158,5 +176,40 @@ describe('suggestions on the real snapshot: filters, dex numbers, notes and dete
     expect(JSON.stringify({ generous, snapshot })).toBe(before);
     expect(second).toEqual(first);
     expect(first.suggestions).toHaveLength(50);
+  });
+});
+
+describe('ability immunities on the real snapshot', () => {
+  it('gives Rotom-Wash a higher defensive raw score against a Ground-weak roster with the ability effect than without', () => {
+    const view = sanitizeSnapshot(snapshot);
+    if (view === null) throw new Error('the committed snapshot must sanitize');
+    // Incineroar + Kingambit: Kingambit (Dark/Steel) is weak to Ground, so the roster is exposed to it.
+    const roster = ['incineroar', 'kingambit'];
+    const plain = roster.map((id) => ({ id, types: view.species[id].types }));
+    const withAbility = roster.map((id) => ({ id, types: view.species[id].types, immune: immunityOf(id, view) ?? undefined }));
+    const target = view.species.rotomwash.types;
+    const immunity = immunityOf('rotomwash', view);
+    expect(immunity).toEqual({ type: 'Ground', ability: 'Levitate' });
+    const without = defensiveComponent(plain, target);
+    const withIt = defensiveComponent(withAbility, target, immunity ?? undefined);
+    expect(withIt.raw).toBeGreaterThan(without.raw);
+    expect(withIt.score).toBeGreaterThan(without.score);
+  });
+
+  it('changes at least a handful of real candidates\' defensive raw scores for a real roster', () => {
+    const view = sanitizeSnapshot(snapshot);
+    if (view === null) throw new Error('the committed snapshot must sanitize');
+    const roster = ['incineroar', 'kingambit'];
+    const plain = roster.map((id) => ({ id, types: view.species[id].types }));
+    const withAbility = roster.map((id) => ({ id, types: view.species[id].types, immune: immunityOf(id, view) ?? undefined }));
+    let changed = 0;
+    for (const id of legal) {
+      if (roster.includes(id)) continue;
+      const target = view.species[id].types;
+      const a = defensiveComponent(plain, target);
+      const b = defensiveComponent(withAbility, target, immunityOf(id, view) ?? undefined);
+      if (a.raw !== b.raw) changed += 1;
+    }
+    expect(changed).toBeGreaterThanOrEqual(5); // 13 when this was written
   });
 });
