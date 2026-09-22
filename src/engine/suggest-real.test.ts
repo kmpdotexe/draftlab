@@ -56,8 +56,9 @@ const isRankedBefore = (a: Suggestion, b: Suggestion) =>
 describe.each([
   ['the pair incineroar + kingambit', ['incineroar', 'kingambit']],
   ['the six most used species', topSix],
+  ['the trio garchomp + whimsicott + sneasler', ['garchomp', 'whimsicott', 'sneasler']],
 ] as Array<[string, ID[]]>)('suggestions for %s', (_name, roster) => {
-  // Remaining 12 with 3 open slots: 3 of 347 (six) or 7 of 353 (pair) candidates cost too much once two cheap slots are reserved.
+  // Remaining 12 with 3 open slots: a handful of candidates cost too much once two cheap slots are reserved.
   const ctx = rosterContext(roster, 12, 3);
   const result = suggest(ctx, snapshot, { limit: 1000 });
   const candidateIds = ctx.pool.filter((id) => !sharesDexNumber(roster, id));
@@ -108,6 +109,21 @@ describe.each([
     const top20 = suggest(ctx, snapshot, { limit: 20 }).suggestions;
     expect(top20.length).toBe(20);
     for (const s of top20) expect(s.signals.some((signal) => signal.reasons.length > 0), s.species).toBe(true);
+  });
+
+  /**
+   * Regression floor for the deliberate deviation from the stage 2 spec's tuning target ("about 3 to 5 of the top 20
+   * have no lift data" for `MISSING_WEIGHT_FACTOR`): once `roleFit` joined as a third signal, the measured counts on
+   * these real rosters at the spec's own default (0.5) came out much lower than that target (0 for the pair, 1 for
+   * the six-species roster, 0 for the trio — see docs/STATUS.md). This pins those measurements as a real assertion,
+   * not just a comment: "evidence leads" holds on real data, with margin.
+   */
+  it('keeps the top 20 dominated by candidates with real usage data', () => {
+    const top20 = suggest(ctx, snapshot, { limit: 20 }).suggestions;
+    const withLift = top20.filter((s) => s.signals[0].score !== null);
+    const noLift = top20.filter((s) => s.signals[0].score === null);
+    expect(withLift.length, roster.join('+')).toBeGreaterThanOrEqual(15); // 20, 19 and 20 when this was written
+    expect(noLift.length, roster.join('+')).toBeLessThanOrEqual(5); // 0, 1 and 0 when this was written
   });
 });
 

@@ -88,11 +88,14 @@ export function suggest(ctx: SuggestContext, snapshot: EngineSnapshot, options: 
   const weights = resolveWeights(opts);
   const limit = typeof opts.limit === 'number' && Number.isInteger(opts.limit) && opts.limit > 0 ? opts.limit : DEFAULT_LIMIT;
 
+  // Shared by every candidate this call, so it is computed once rather than inside the per-candidate role signal.
+  const lacked = rosterLacks(roster, view);
+
   // Every candidate's signals first: the percentile ranks are taken over the whole candidate pool.
   const outputs: Array<Record<SignalName, SignalOutput>> = selection.candidates.map(({ species }) => ({
     usageLift: liftSignal(roster, species, view.usage),
     typeSynergy: typeSignal(roster, species, view),
-    roleFit: roleSignal(roster, species, view),
+    roleFit: roleSignal(roster, species, view, lacked),
   }));
   const ranks = rankAll(
     SIGNAL_NAMES,
@@ -132,7 +135,6 @@ export function suggest(ctx: SuggestContext, snapshot: EngineSnapshot, options: 
   }
   if (selection.candidates.length === 0 && selection.overBudget > 0) notes.push({ kind: 'no-affordable-candidates' });
   if (view.usage === null) notes.push({ kind: 'no-usage-data' });
-  const lacked = rosterLacks(roster, view);
   if (lacked.length > 0) notes.push({ kind: 'roster-lacks-roles', roles: lacked });
   if (unscored > 0) notes.push({ kind: 'unscored-candidates', count: unscored });
 

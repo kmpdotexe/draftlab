@@ -1,5 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_LIMIT, MISSING_WEIGHT_FACTOR, ROLES, SIGNAL_NAMES, contextFor, suggest } from './index';
+import {
+  CAN_LEARN_FACTOR,
+  DEFAULT_LIMIT,
+  EXPECTED_ABILITY_MIN_SHARE,
+  IMMUNITY_ABILITIES,
+  MISSING_WEIGHT_FACTOR,
+  ROLES,
+  RUN_MIN_SHARE,
+  SIGNAL_NAMES,
+  contextFor,
+  suggest,
+} from './index';
 
 describe('the engine index', () => {
   it('exports the public functions and constants', () => {
@@ -8,6 +19,10 @@ describe('the engine index', () => {
     expect([...SIGNAL_NAMES]).toEqual(['usageLift', 'typeSynergy', 'roleFit']);
     expect(MISSING_WEIGHT_FACTOR).toBe(0.5);
     expect(ROLES.map((role) => role.id)).toHaveLength(10);
+    expect(RUN_MIN_SHARE).toBe(0.1);
+    expect(CAN_LEARN_FACTOR).toBe(0.5);
+    expect(EXPECTED_ABILITY_MIN_SHARE).toBe(0.5);
+    expect(IMMUNITY_ABILITIES.Levitate).toBe('Ground');
   });
 
   it('exports a working suggest', () => {

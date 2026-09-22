@@ -55,12 +55,18 @@ export interface RoleTag {
 
 type RoleSnapshot = Pick<EngineSnapshot, 'species' | 'usage' | 'learnsets'>;
 
-/** The role move the species runs most (at least `RUN_MIN_SHARE`; ties by id ascending), or null. */
-function bestRunMove(moves: readonly string[], rows: ReadonlyArray<readonly [ID, number]>): string | null {
+/**
+ * The role move the species runs most (at least `RUN_MIN_SHARE`; ties by id ascending), or null. `rows` is usually
+ * already sanitized (an array of `[id, number]` pairs) by `sanitizeSnapshot`, but `speciesRoles` is also exported and
+ * callable directly on a raw snapshot, so a row that is not a well-formed pair is skipped rather than indexed into.
+ */
+function bestRunMove(moves: readonly string[], rows: unknown): string | null {
+  if (!Array.isArray(rows)) return null;
   let best: readonly [ID, number] | null = null;
   for (const row of rows) {
+    if (!Array.isArray(row) || row.length < 2 || typeof row[0] !== 'string' || typeof row[1] !== 'number') continue;
     if (row[1] < RUN_MIN_SHARE || !moves.includes(row[0])) continue;
-    if (best === null || row[1] > best[1] || (row[1] === best[1] && compareIds(row[0], best[0]) < 0)) best = row;
+    if (best === null || row[1] > best[1] || (row[1] === best[1] && compareIds(row[0], best[0]) < 0)) best = row as [ID, number];
   }
   return best === null ? null : best[0];
 }
@@ -75,7 +81,8 @@ export function speciesRoles(id: ID, snapshot: RoleSnapshot): RoleTag[] {
   if (!Object.hasOwn(snapshot.species, id)) return [];
   const usage = snapshot.usage;
   const entry = usage !== null && Object.hasOwn(usage.species, id) ? usage.species[id] : null;
-  const learnset = snapshot.learnsets !== undefined && Object.hasOwn(snapshot.learnsets, id) ? snapshot.learnsets[id] : [];
+  const rawLearnset = snapshot.learnsets !== undefined && Object.hasOwn(snapshot.learnsets, id) ? snapshot.learnsets[id] : [];
+  const learnset: readonly string[] = Array.isArray(rawLearnset) ? rawLearnset : [];
   const ability = expectedAbility(id, snapshot);
 
   const tags: RoleTag[] = [];

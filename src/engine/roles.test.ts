@@ -126,6 +126,22 @@ describe('speciesRoles: can-learn', () => {
   });
 });
 
+describe('speciesRoles: malformed input (it is exported and callable on a raw, unsanitized snapshot)', () => {
+  it('never throws when a usage entry\'s moves is not an array of pairs, or a learnset is not an array', () => {
+    const s = roleSnapshot({ a: { usage: { moves: [['fakeout', 0.6]] } } });
+    (s.usage!.species.a as unknown as Record<string, unknown>).moves = 'fakeout';
+    expect(() => speciesRoles('a', s)).not.toThrow();
+    expect(speciesRoles('a', s)).toEqual([]);
+    (s.usage!.species.a as unknown as Record<string, unknown>).moves = [null, 5, ['fakeout']];
+    expect(() => speciesRoles('a', s)).not.toThrow();
+    expect(speciesRoles('a', s)).toEqual([]); // no row is a valid [id, number] pair
+    const b = roleSnapshot({ b: { learnset: ['fakeout'] } });
+    (b as unknown as Record<string, unknown>).learnsets = { b: 'fakeout' };
+    expect(() => speciesRoles('b', b)).not.toThrow();
+    expect(speciesRoles('b', b)).toEqual([]);
+  });
+});
+
 describe('speciesRoles: unknown species', () => {
   it('has no tags for an id that is not in the snapshot, including names on the prototype', () => {
     const s = roleSnapshot({ a: { learnset: ['fakeout'] } });

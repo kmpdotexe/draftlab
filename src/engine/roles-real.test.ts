@@ -37,6 +37,9 @@ describe('the role table on the real snapshot', () => {
     }
     expect(counts.fakeOut.runs).toBeGreaterThanOrEqual(20); // 28 when this was written
     expect(counts.redirection.runs).toBeGreaterThanOrEqual(5); // 7 when this was written
+    // 70 when this was written, measured with speciesRoles's actual RUN_MIN_SHARE rule; the stage 2 spec's informal
+    // "75 species" (from a standalone probe, not this rule) was close but not exact — another plan-time finding, not
+    // a code defect. See the Intimidate line below for the same kind of gap.
     expect(counts.speedControl.runs).toBeGreaterThanOrEqual(50); // 70 when this was written
     expect(counts.pivot.runs).toBeGreaterThanOrEqual(20); // 29 when this was written
     expect(counts.intimidate.ability).toBeGreaterThanOrEqual(8); // 10 when this was written

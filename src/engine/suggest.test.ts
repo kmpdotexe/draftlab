@@ -17,9 +17,9 @@ import type { EngineSnapshot, SuggestContext, SuggestOptions } from './types';
  *   role score: 0 for every candidate (see above)
  * Percentile ranks (mid-rank, ties share the average). Lift has data for stla, stlb, stlc and grd (n = 4): the three
  * tied Steels have `below` = 1 (only grd is smaller) and `equal` = 3, so rank = (1 + (3-1)/2) / 3 = 0.6666667; grd is
- * the smallest, rank 0. Type has data for all 5 (n = 5): stl* highest, rank (4 + 0/2)/4... directly, stl* is strictly
- * above nod and grd with no ties, so rank = 3/4 = 0.75; grd rank 1/4 = 0.25; nod lowest, rank 0. Role is 0 for every
- * candidate (n = 5, all tied): rank = (0 + (5-1)/2)/4 = 0.5 for everyone.
+ * the smallest, rank 0. Type has data for all 5 (n = 5, no ties): stl* is above both nod and grd, so `below` = 2 and
+ * `equal` = 1, rank = (2 + 0/2) / 4 = 0.75; grd is above only nod, rank = (1 + 0) / 4 = 0.25; nod is smallest, rank 0.
+ * Role is 0 for every candidate (n = 5, all five tied): rank = (0 + (5-1)/2) / 4 = 0.5 for everyone.
  * Default weights 0.35 / 0.3 / 0.25 all have data for stl* and grd, so they re-normalize to themselves (sum 0.9):
  *   stl* = (0.35 x 0.6666667 + 0.3 x 0.75 + 0.25 x 0.5) / 0.9 = 0.6481481 (weights 0.3888889 / 0.3333333 / 0.2777778)
  *   grd  = (0.35 x 0 + 0.3 x 0.25 + 0.25 x 0.5) / 0.9 = 0.2222222
@@ -274,8 +274,8 @@ describe('suggest: notes and early results', () => {
     const s = snapshot();
     s.usage = null;
     const result = suggest(ctx(), s);
-    // Without usage data dra1 has no tags at all: the roster lacks all ten roles.
-    expect(result.notes).toEqual([{ kind: 'no-usage-data' }, { kind: 'roster-lacks-roles', roles: [...LACKS_NINE.roles.slice(0, 0), 'fakeOut', ...LACKS_NINE.roles] }]);
+    // Without usage data dra1 has no tags at all: the roster lacks all ten roles (fakeOut first, in table order, then the nine above).
+    expect(result.notes).toEqual([{ kind: 'no-usage-data' }, { kind: 'roster-lacks-roles', roles: ['fakeOut', ...LACKS_NINE.roles] }]);
     expect(result.suggestions).toHaveLength(5);
     for (const suggestion of result.suggestions) expect(suggestion.signals[0].score).toBeNull();
   });

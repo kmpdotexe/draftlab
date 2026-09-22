@@ -1,9 +1,11 @@
 /** The engine's public surface. The UI imports from here; everything else in `src/engine/` is internal. */
+export { EXPECTED_ABILITY_MIN_SHARE, IMMUNITY_ABILITIES } from './abilities';
 export { contextFor } from './candidates';
 export { MISSING_WEIGHT_FACTOR } from './combine';
-export { ROLES } from './roles';
+export { CAN_LEARN_FACTOR, ROLES, RUN_MIN_SHARE } from './roles';
 export { DEFAULT_LIMIT, DEFAULT_WEIGHTS, LOW_USAGE, suggest } from './suggest';
 export { SIGNAL_NAMES } from './types';
+export type { RoleDef } from './roles';
 export type {
   EngineSnapshot,
   Note,
