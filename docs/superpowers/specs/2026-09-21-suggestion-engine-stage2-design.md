@@ -2,6 +2,8 @@
 
 Date: 2026-09-21. Status: design approved in conversation; awaiting spec review.
 
+Extended by `docs/superpowers/specs/2026-09-29-suggestion-engine-stage3-design.md` (stage 3): the role, ability and coverage rules below also read the roster's entered sets, and its "Combining" section is amended for signals that no candidate has data for.
+
 Parents: `docs/superpowers/specs/2026-09-21-suggestion-engine-stage1-design.md` (stage 1; this spec supersedes its "Combining and ranking" section and the `SignalScore` shape, and extends its types), `docs/superpowers/specs/2026-09-20-draft-lab-design.md` (the "Suggestion engine" section defines signal 3, "Role and mechanics").
 
 ## Purpose

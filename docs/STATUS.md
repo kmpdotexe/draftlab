@@ -20,10 +20,10 @@ All work so far happened on 2026-09-20 and 2026-09-21. Each increment went throu
 | 4 | Showdown paste import and export | `specs/2026-09-21-showdown-paste-design.md`, `plans/2026-09-21-showdown-paste.md` | merged, pushed |
 | 5 | Suggestion engine, stage 1: candidate selection under the budget, usage lift and type synergy signals, explained rankings | `specs/2026-09-21-suggestion-engine-stage1-design.md`, `plans/2026-09-21-suggestion-engine-stage1.md` | done: built and reviewed |
 | 6 | Suggestion engine, stage 2: role and mechanics tags, ability immunities, rank-based combining | `specs/2026-09-21-suggestion-engine-stage2-design.md` (no separate plan document; see the note below) | done: built and reviewed |
-| 7 | Suggestion engine, stage 3: scoring that uses the sets you have entered | not started | |
+| 7 | Suggestion engine, stage 3: entered sets replace ladder guesses, and a partner-combo signal | `specs/2026-09-29-suggestion-engine-stage3-design.md`, `plans/2026-09-29-suggestion-engine-stage3.md` | done: built and reviewed |
 | 8 | App shell, UI and hosting | not started | |
 
-Tests, all passing: 565 unit tests and 21 integration tests.
+Tests, all passing: 631 unit tests and 21 integration tests.
 
 ## Architecture
 
@@ -32,7 +32,7 @@ sync/            Node script. Reads the pokemon-showdown npm package (legal spec
                  and Smogon's usage stats, and writes data/<formatId>/snapshot.json + meta.json.
 data/            The committed snapshot the app reads. The app never calls Smogon or Showdown at runtime.
 src/domain/      Pure logic: types, league and draft rules, sets, teams, saved file, paste import/export.
-src/engine/      Pure suggestion engine (increments 5-6). Imports only from src/domain.
+src/engine/      Pure suggestion engine (increments 5-7). Imports only from src/domain.
 src/app/         Planned React UI. Does not exist yet.
 ```
 
@@ -69,6 +69,7 @@ Stage 2 is the one exception to step 2: the implementation plan document was not
 - Suggestion engine stage 2 still does not weigh how noisy a lift is for rare pairs, and does not model role conflicts (a Tailwind team versus a Trick Room team) or partial-resistance abilities (Thick Fat, Heatproof, Fluffy, Filter, Solid Rock). Those wait for a later increment.
 - The stage 2 spec's tuning target for `MISSING_WEIGHT_FACTOR` ("about 3 to 5 of the top 20 have no lift data") turned out to be unreachable once the third signal (`roleFit`) was added: on the real pair, six-species and trio rosters the measured counts at factor 0.5 are 0, 1 and 0 of the top 20 (they were 0 and 2 with only two signals, at plan time). The constant stayed at 0.5 — evidence still leads clearly, just more than the spec's rough target assumed — and `suggest-real.test.ts` asserts real floors and ceilings on those counts, not just a comment.
 - The role-fit signal's `can-learn` credit (half importance, for a species with no ladder data that could learn a signature move) works a little against "evidence leads": on paper a no-usage species could out-score a low-usage one on `roleFit` alone. Not biting on the real rosters checked so far (their top 20 is dominated by species with usage data), but stage 3 should look at it deliberately rather than by accident.
+- Stage 3 reads entered sets but does not check them (the domain's set checks do that) and does not model combo conflicts (rain against sun, Trick Room against Tailwind) or items (Damp Rock and similar). Trick Room uses base Speed on both sides, since candidates have no set. The Helping Hand combo counts only spread attacks of base power 70 or more, so speed-control spread moves (Icy Wind, Electroweb) do not make a "spread attacker".
 - `Suggestion.score` is now a percentile-based fit score, not an absolute grade: it means "how this candidate compares with the rest of the pool for this roster", and is not comparable across different rosters or calls. The per-signal absolute scores are still in `signals[].score`.
 - Combined scores are ranking-only, more than ever: two different `suggest()` calls can both put their best candidate near 1.0, even though one roster's pool is stronger than the other's.
 - Small parked items from earlier reviews: a saved set or team keeps unknown nested keys through a save; item legality ignores the format's rule table (Reg M-B has no item bans); the paste parser does not keep each block's source text for highlighting; draft-state derivation is recomputed per `checkPick` call, so the UI should derive the draft once and pass it around.
@@ -79,5 +80,6 @@ Stage 2 is the one exception to step 2: the implementation plan document was not
 - The budget reserve in `src/engine/candidates.ts` and its tests.
 - The lift score mapping (log scale, clamped to lifts between 1/8 and 8) in `src/engine/lift-signal.ts`.
 - The role table (`src/engine/roles.ts`) is hand-curated and small on purpose; which roles or moves it should grow to cover next is worth a second opinion.
+- The combo table (`src/engine/combos.ts`) and the profile rules (`src/engine/profile.ts`: when an entered set replaces ladder data).
 - The rank-based combining rule (`src/engine/combine.ts`) and `MISSING_WEIGHT_FACTOR`: see the note above about the unreachable tuning target.
 - The plan and spec quality themselves: they are long and detailed on purpose, and feedback on what is over- or under-specified is useful.
