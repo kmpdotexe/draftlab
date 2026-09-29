@@ -148,12 +148,14 @@ The table, in this order:
 | `electricTerrain` | 0.5 | abilities `Electric Surge` | abilities `Surge Surfer`; moves `risingvoltage` |
 | `helpingHand` | 0.5 | moves `helpinghand` | `spreadMove` |
 
-Constant `TRICK_ROOM_MAX_BASE_SPEED = 50` (the value in the table).
+Constants `TRICK_ROOM_MAX_BASE_SPEED = 50` (the value in the table) and `SPREAD_MIN_BASE_POWER = 70`.
+
+*Amended at plan time (2026-09-29):* `spreadMove` means a spread **attack**, base power at least `SPREAD_MIN_BASE_POWER`. Measured without the floor, 126 species matched the Helping Hand side, many only through speed-control spread moves (Icy Wind, Electroweb, Snarl, Bulldoze, all 65 or less); with it, 118, keeping Rock Slide (75), Heat Wave, Earthquake and Dazzling Gleam.
 
 `sideMatch(side, id, profile, snapshot): ComboSource | null` checks, in this order, and returns the source of the first check that matches, or null:
 1. the profile's ability is in `side.abilities` -> `abilityFrom`;
 2. the profile runs one of `side.moves` -> `movesFrom`;
-3. `side.spreadMove` and the profile runs a move whose move-table entry has `target` `'allAdjacentFoes'` or `'allAdjacent'`, a `category` other than `'Status'` and `basePower` above 0 -> `movesFrom`;
+3. `side.spreadMove` and the profile runs a move whose move-table entry has `target` `'allAdjacentFoes'` or `'allAdjacent'`, a `category` other than `'Status'` and `basePower` at least `SPREAD_MIN_BASE_POWER` -> `movesFrom`;
 4. `side.maxBaseSpeed` is set and the species' `baseStats.spe` is a finite number at most it -> `'species'`.
 
 A species that is not in the snapshot matches nothing. Fields the sanitizer does not check (`target`, `baseStats`) are read defensively: a missing or wrong-typed value simply does not match.
