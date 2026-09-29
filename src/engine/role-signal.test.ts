@@ -36,8 +36,8 @@ describe('roleSignal', () => {
     const result = roleSignal(roster, 'c2', s, lacked);
     expect(result.score).toBeCloseTo(1 / 6, 9);
     expect(result.reasons).toEqual([
-      { kind: 'fills-role', role: 'redirection', source: 'can-learn', via: 'followme' },
-      { kind: 'fills-role', role: 'speedControl', source: 'can-learn', via: 'tailwind' },
+      { kind: 'fills-role', role: 'redirection', source: 'can-learn', via: 'followme', from: 'ladder' },
+      { kind: 'fills-role', role: 'speedControl', source: 'can-learn', via: 'tailwind', from: 'ladder' },
     ]);
   });
 
@@ -47,8 +47,8 @@ describe('roleSignal', () => {
 
   it('lists only the roles the roster lacks: c1\'s Fake Out is not a reason', () => {
     expect(roleSignal(roster, 'c1', s, lacked).reasons).toEqual([
-      { kind: 'fills-role', role: 'speedControl', source: 'runs', via: 'tailwind' },
-      { kind: 'fills-role', role: 'disruption', source: 'runs', via: 'willowisp' },
+      { kind: 'fills-role', role: 'speedControl', source: 'runs', via: 'tailwind', from: 'ladder' },
+      { kind: 'fills-role', role: 'disruption', source: 'runs', via: 'willowisp', from: 'ladder' },
     ]);
   });
 
@@ -56,14 +56,14 @@ describe('roleSignal', () => {
     // c3 fills five roles. redirection and speed control (importance 1) come first, by id; then the importance-0.5 roles by id:
     // disruption, pivot, priority. Only disruption fits under the cap of 3.
     expect(roleSignal(roster, 'c3', s, lacked).reasons).toEqual([
-      { kind: 'fills-role', role: 'redirection', source: 'runs', via: 'ragepowder' },
-      { kind: 'fills-role', role: 'speedControl', source: 'runs', via: 'tailwind' },
-      { kind: 'fills-role', role: 'disruption', source: 'runs', via: 'willowisp' },
+      { kind: 'fills-role', role: 'redirection', source: 'runs', via: 'ragepowder', from: 'ladder' },
+      { kind: 'fills-role', role: 'speedControl', source: 'runs', via: 'tailwind', from: 'ladder' },
+      { kind: 'fills-role', role: 'disruption', source: 'runs', via: 'willowisp', from: 'ladder' },
     ]);
   });
 
   it('names the ability behind an ability tag', () => {
-    expect(roleSignal(roster, 'c5', s, lacked).reasons).toEqual([{ kind: 'fills-role', role: 'weatherTerrain', source: 'ability', via: 'Drizzle' }]);
+    expect(roleSignal(roster, 'c5', s, lacked).reasons).toEqual([{ kind: 'fills-role', role: 'weatherTerrain', source: 'ability', via: 'Drizzle', from: 'ladder' }]);
   });
 
   it('does not let a roster member\'s can-learn tag cover a role: the roster then lacks all ten roles (importance 7)', () => {

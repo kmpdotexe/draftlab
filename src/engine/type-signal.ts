@@ -1,6 +1,7 @@
 import type { ID } from '../domain/id';
 import { immunityOf, type Immunity } from './abilities';
 import { clamp, compareIds } from './math';
+import { profileOf, setFor } from './profile';
 import { TYPES, effectiveness, multiplier, severity, type TypeName } from './typechart';
 import type { EngineSnapshot, Reason, SignalOutput } from './types';
 
@@ -92,18 +93,16 @@ export function defensiveComponent(
 
 /**
  * The types a species can hit with: its own types plus the types of the damaging moves (not Status, base power above 0)
- * it runs on at least `OFFENSIVE_MIN_MOVE_SHARE` of its sets. A species with no usage entry, or a move that is not in
- * the move table, contributes only its own types. An id that is not in the snapshot has none.
+ * its profile runs on at least `OFFENSIVE_MIN_MOVE_SHARE` of its sets (every move of an entered set counts). A species
+ * with no usage entry and no set, or a move that is not in the move table, contributes only its own types. An id that
+ * is not in the snapshot has none.
  */
-export function attackingTypes(id: ID, snapshot: EngineSnapshot): Set<string> {
+export function attackingTypes(id: ID, snapshot: EngineSnapshot, sets?: Record<ID, unknown>): Set<string> {
   const types = new Set<string>(Object.hasOwn(snapshot.species, id) ? snapshot.species[id].types : []);
-  const usage = snapshot.usage;
-  if (usage !== null && Object.hasOwn(usage.species, id)) {
-    for (const [moveId, share] of usage.species[id].moves) {
-      if (share < OFFENSIVE_MIN_MOVE_SHARE || !Object.hasOwn(snapshot.moves, moveId)) continue;
-      const move = snapshot.moves[moveId];
-      if (move.category !== 'Status' && move.basePower > 0) types.add(move.type);
-    }
+  for (const [moveId, share] of profileOf(id, snapshot, setFor(sets, id)).moves) {
+    if (share < OFFENSIVE_MIN_MOVE_SHARE || !Object.hasOwn(snapshot.moves, moveId)) continue;
+    const move = snapshot.moves[moveId];
+    if (move.category !== 'Status' && move.basePower > 0) types.add(move.type);
   }
   return types;
 }
@@ -130,18 +129,20 @@ export function offensiveComponent(
 
 /**
  * Type synergy: `0.6 x defensive + 0.4 x offensive`, or just the defensive score when the offensive component has no
- * data. No data for an empty roster (after dropping ids that are not in the snapshot) or an unknown candidate.
+ * data. Roster members are read through `sets` where it has an entry (their ability immunity and attacking types); the
+ * candidate never is. No data for an empty roster (after dropping ids that are not in the snapshot) or an unknown
+ * candidate.
  */
-export function typeSignal(roster: ID[], candidate: ID, snapshot: EngineSnapshot): SignalOutput {
+export function typeSignal(roster: ID[], candidate: ID, snapshot: EngineSnapshot, sets?: Record<ID, unknown>): SignalOutput {
   if (!Object.hasOwn(snapshot.species, candidate)) return { score: null, reasons: [] };
   const members: TypedMember[] = roster
     .filter((id) => Object.hasOwn(snapshot.species, id))
-    .map((id) => ({ id, types: snapshot.species[id].types, immune: immunityOf(id, snapshot) ?? undefined }));
+    .map((id) => ({ id, types: snapshot.species[id].types, immune: immunityOf(id, snapshot, sets) ?? undefined }));
   if (members.length === 0) return { score: null, reasons: [] };
 
   const defensive = defensiveComponent(members, snapshot.species[candidate].types, immunityOf(candidate, snapshot) ?? undefined);
   const offensive = offensiveComponent(
-    members.map((entry) => attackingTypes(entry.id, snapshot)),
+    members.map((entry) => attackingTypes(entry.id, snapshot, sets)),
     attackingTypes(candidate, snapshot),
   );
 

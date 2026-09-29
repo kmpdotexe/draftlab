@@ -279,6 +279,17 @@ describe('typeSignal', () => {
     expect(withoutSurf.reasons.at(-1)).toEqual({ kind: 'adds-coverage', types: ['Ground', 'Rock', 'Water'] });
   });
 
+  it('takes a roster member\'s move types from its entered set, and never the candidate\'s', () => {
+    // No usage data. A roster set with Surf gives the "with Surf" numbers above (0.3738636); without it, 0.4232143.
+    const moves = { surf: typedMove('surf', 'Water', 'Special', 90) };
+    const s = snap({ fire: ['Fire'], grass: ['Grass'] }, null, moves);
+    expect(typeSignal(['fire'], 'grass', s).score).toBeCloseTo(0.4232143, 7);
+    expect(typeSignal(['fire'], 'grass', s, { fire: { moves: ['surf'] } }).score).toBeCloseTo(0.3738636, 7);
+    // A set for the candidate is ignored: the candidate is always read from the ladder.
+    expect(typeSignal(['fire'], 'grass', s, { grass: { moves: ['surf'] } }).score).toBeCloseTo(0.4232143, 7);
+    expect([...attackingTypes('fire', s, { fire: { moves: ['surf'] } })].sort()).toEqual(['Fire', 'Water']);
+  });
+
   it('feeds the attacking types of both species into the offensive component (components only, not typeSignal)', () => {
     const moves = { surf: typedMove('surf', 'Water', 'Special', 90) };
     const usage = usageData([usageEntry('fire', { moves: [['surf', 0.6]] })]);
@@ -415,6 +426,15 @@ describe('typeSignal: ability immunities', () => {
     const base = { fire: { types: ['Fire'], abilities: ['Blaze'] }, nrm: { types: ['Normal'], abilities: ['Pressure'] } };
     const other = { fire: { types: ['Fire'], abilities: ['Intimidate'] }, nrm: { types: ['Normal'], abilities: ['Thick Fat'] } };
     expect(typeSignal(['fire'], 'nrm', withAbilities(other))).toEqual(typeSignal(['fire'], 'nrm', withAbilities(base)));
+  });
+
+  it('reads a roster member\'s immunity from its entered set (Flash Fire named by the set)', () => {
+    // Overgrow or Flash Fire, no usage: no expected ability, so the Grass member counts as weak to Fire (0.2675, see above).
+    // A set with Flash Fire gives the Flash Fire numbers (0.305, see above).
+    const s = withAbilities({ gr: { types: ['Grass'], abilities: ['Overgrow', 'Flash Fire'] }, bug: { types: ['Bug'], abilities: ['Pressure'] } });
+    expect(typeSignal(['gr'], 'bug', s).score).toBeCloseTo(0.2675, 7);
+    expect(typeSignal(['gr'], 'bug', s, { gr: { ability: 'flashfire' } }).score).toBeCloseTo(0.305, 7);
+    expect(typeSignal(['gr'], 'bug', s, {}).score).toBeCloseTo(0.2675, 7);
   });
 
   it('ignores an available immunity ability that is not the expected one', () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { CAN_LEARN_FACTOR, ROLES, RUN_MIN_SHARE, rosterLacks, speciesRoles } from './roles';
-import { roleSnapshot } from './test-support';
+import { roleSnapshot, typedMove } from './test-support';
 import type { RoleId } from './types';
 
 const ALL_ROLES: RoleId[] = [
@@ -37,7 +37,7 @@ describe('speciesRoles: runs', () => {
       at: { usage: { moves: [['fakeout', 0.1]] } },
       below: { usage: { moves: [['fakeout', 0.09]] } },
     });
-    expect(speciesRoles('at', s)).toEqual([{ role: 'fakeOut', source: 'runs', via: 'fakeout' }]);
+    expect(speciesRoles('at', s)).toEqual([{ role: 'fakeOut', source: 'runs', via: 'fakeout', from: 'ladder' }]);
     expect(speciesRoles('below', s)).toEqual([]);
   });
 
@@ -47,9 +47,9 @@ describe('speciesRoles: runs', () => {
       tie: { usage: { moves: [['trickroom', 0.3], ['tailwind', 0.3]] } },
       tieReversed: { usage: { moves: [['tailwind', 0.3], ['trickroom', 0.3]] } },
     });
-    expect(speciesRoles('top', s)).toEqual([{ role: 'speedControl', source: 'runs', via: 'trickroom' }]);
-    expect(speciesRoles('tie', s)).toEqual([{ role: 'speedControl', source: 'runs', via: 'tailwind' }]);
-    expect(speciesRoles('tieReversed', s)).toEqual([{ role: 'speedControl', source: 'runs', via: 'tailwind' }]);
+    expect(speciesRoles('top', s)).toEqual([{ role: 'speedControl', source: 'runs', via: 'trickroom', from: 'ladder' }]);
+    expect(speciesRoles('tie', s)).toEqual([{ role: 'speedControl', source: 'runs', via: 'tailwind', from: 'ladder' }]);
+    expect(speciesRoles('tieReversed', s)).toEqual([{ role: 'speedControl', source: 'runs', via: 'tailwind', from: 'ladder' }]);
   });
 
   it('gives one tag per role, in table order, whatever the order of the usage rows', () => {
@@ -63,10 +63,10 @@ describe('speciesRoles: runs', () => {
       },
     });
     expect(speciesRoles('a', s)).toEqual([
-      { role: 'fakeOut', source: 'runs', via: 'fakeout' },
-      { role: 'speedControl', source: 'runs', via: 'tailwind' },
-      { role: 'intimidate', source: 'ability', via: 'Intimidate' },
-      { role: 'priority', source: 'runs', via: 'suckerpunch' },
+      { role: 'fakeOut', source: 'runs', via: 'fakeout', from: 'ladder' },
+      { role: 'speedControl', source: 'runs', via: 'tailwind', from: 'ladder' },
+      { role: 'intimidate', source: 'ability', via: 'Intimidate', from: 'ladder' },
+      { role: 'priority', source: 'runs', via: 'suckerpunch', from: 'ladder' },
     ]);
   });
 });
@@ -78,14 +78,14 @@ describe('speciesRoles: ability', () => {
       unlikely: { abilities: ['Intimidate', 'Blaze'], usage: { abilities: [['intimidate', 0.4], ['blaze', 0.6]] } },
       unused: { abilities: ['Intimidate', 'Blaze'], usage: { abilities: [['intimidate', 0.3], ['blaze', 0.3]] } },
     });
-    expect(speciesRoles('likely', s)).toEqual([{ role: 'intimidate', source: 'ability', via: 'Intimidate' }]);
+    expect(speciesRoles('likely', s)).toEqual([{ role: 'intimidate', source: 'ability', via: 'Intimidate', from: 'ladder' }]);
     expect(speciesRoles('unlikely', s)).toEqual([]);
     expect(speciesRoles('unused', s)).toEqual([]);
   });
 
   it('tags the only ability of a species that has no usage entry', () => {
     const s = roleSnapshot({ ninetails: { abilities: ['Drought'] }, other: { abilities: ['Drought', 'Blaze'] } });
-    expect(speciesRoles('ninetails', s)).toEqual([{ role: 'weatherTerrain', source: 'ability', via: 'Drought' }]);
+    expect(speciesRoles('ninetails', s)).toEqual([{ role: 'weatherTerrain', source: 'ability', via: 'Drought', from: 'ladder' }]);
     expect(speciesRoles('other', s)).toEqual([]);
   });
 });
@@ -97,10 +97,10 @@ describe('speciesRoles: can-learn', () => {
       b: { learnset: ['ragepowder', 'followme'] },
     });
     expect(speciesRoles('a', s)).toEqual([
-      { role: 'fakeOut', source: 'can-learn', via: 'fakeout' },
-      { role: 'speedControl', source: 'can-learn', via: 'trickroom' },
+      { role: 'fakeOut', source: 'can-learn', via: 'fakeout', from: 'ladder' },
+      { role: 'speedControl', source: 'can-learn', via: 'trickroom', from: 'ladder' },
     ]);
-    expect(speciesRoles('b', s)).toEqual([{ role: 'redirection', source: 'can-learn', via: 'followme' }]);
+    expect(speciesRoles('b', s)).toEqual([{ role: 'redirection', source: 'can-learn', via: 'followme', from: 'ladder' }]);
   });
 
   it('never tags a species that has a usage entry for a role it merely can learn', () => {
@@ -122,7 +122,56 @@ describe('speciesRoles: can-learn', () => {
   it('credits every species with no usage entry when there is no usage data at all', () => {
     const s = roleSnapshot({ a: { learnset: ['fakeout'] } }, false);
     expect(s.usage).toBeNull();
-    expect(speciesRoles('a', s)).toEqual([{ role: 'fakeOut', source: 'can-learn', via: 'fakeout' }]);
+    expect(speciesRoles('a', s)).toEqual([{ role: 'fakeOut', source: 'can-learn', via: 'fakeout', from: 'ladder' }]);
+  });
+});
+
+describe('speciesRoles and rosterLacks: entered sets', () => {
+  /** `lead` runs Fake Out on 90% of ladder sets and has Intimidate as its expected ability; the move table has the set moves. */
+  const withMoves = () => {
+    const s = roleSnapshot({
+      lead: { abilities: ['Intimidate', 'Blaze'], usage: { moves: [['fakeout', 0.9]], abilities: [['intimidate', 0.9]] } },
+      learner: { learnset: ['fakeout'] },
+    });
+    s.moves = {
+      fakeout: typedMove('fakeout', 'Normal', 'Physical', 40),
+      tailwind: typedMove('tailwind', 'Flying', 'Status', 0),
+      flareblitz: typedMove('flareblitz', 'Fire', 'Physical', 120),
+    };
+    return s;
+  };
+
+  it('reads the set\'s moves instead of the ladder\'s, and says so', () => {
+    const sets = { lead: { moves: ['flareblitz', 'tailwind'] } };
+    expect(speciesRoles('lead', withMoves(), sets)).toEqual([
+      { role: 'speedControl', source: 'runs', via: 'tailwind', from: 'set' },
+      { role: 'intimidate', source: 'ability', via: 'Intimidate', from: 'ladder' },
+    ]);
+  });
+
+  it('reads the set\'s ability instead of the expected one', () => {
+    const sets = { lead: { ability: 'blaze' } };
+    expect(speciesRoles('lead', withMoves(), sets)).toEqual([{ role: 'fakeOut', source: 'runs', via: 'fakeout', from: 'ladder' }]);
+  });
+
+  it('never credits can-learn to a species whose set gives its moves', () => {
+    expect(speciesRoles('learner', withMoves())).toEqual([{ role: 'fakeOut', source: 'can-learn', via: 'fakeout', from: 'ladder' }]);
+    expect(speciesRoles('learner', withMoves(), { learner: { moves: ['flareblitz'] } })).toEqual([]);
+  });
+
+  it('makes a role lacked again when the set drops it (a lead without Fake Out)', () => {
+    const s = withMoves();
+    expect(rosterLacks(['lead'], s)).not.toContain('fakeOut');
+    expect(rosterLacks(['lead'], s, { lead: { moves: ['flareblitz'] } })).toContain('fakeOut');
+  });
+
+  it('changes nothing with an empty set table, a set for another species, or a set with no usable field', () => {
+    const s = withMoves();
+    const ladder = speciesRoles('lead', s);
+    expect(speciesRoles('lead', s, {})).toEqual(ladder);
+    expect(speciesRoles('lead', s, { learner: { moves: ['tailwind'] } })).toEqual(ladder);
+    expect(speciesRoles('lead', s, { lead: { moves: ['gonemove'], ability: 'levitate' } })).toEqual(ladder);
+    expect(speciesRoles('lead', s, { lead: { species: 'learner', moves: ['tailwind'] } })).toEqual(ladder);
   });
 });
 

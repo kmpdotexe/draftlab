@@ -1,7 +1,7 @@
 import type { ID } from '../domain/id';
-import { expectedAbility } from './abilities';
 import { compareIds } from './math';
-import type { EngineSnapshot, RoleId, RoleSource } from './types';
+import { profileOf, setFor, type Profile } from './profile';
+import type { EngineSnapshot, ProfileSource, RoleId, RoleSource } from './types';
 
 /** A species runs a role move when at least this share of its sets carry it. */
 export const RUN_MIN_SHARE = 0.1;
@@ -51,50 +51,48 @@ export interface RoleTag {
   source: RoleSource;
   /** The move id (`runs`, `can-learn`) or the ability name (`ability`) behind the tag. */
   via: string;
+  /** Where the fact came from: the entered set or the ladder (`can-learn` is always `'ladder'`). */
+  from: ProfileSource;
 }
 
-type RoleSnapshot = Pick<EngineSnapshot, 'species' | 'usage' | 'learnsets'>;
+type RoleSnapshot = Pick<EngineSnapshot, 'species' | 'moves' | 'usage' | 'learnsets'>;
 
-/**
- * The role move the species runs most (at least `RUN_MIN_SHARE`; ties by id ascending), or null. `rows` is usually
- * already sanitized (an array of `[id, number]` pairs) by `sanitizeSnapshot`, but `speciesRoles` is also exported and
- * callable directly on a raw snapshot, so a row that is not a well-formed pair is skipped rather than indexed into.
- */
-function bestRunMove(moves: readonly string[], rows: unknown): string | null {
-  if (!Array.isArray(rows)) return null;
-  let best: readonly [ID, number] | null = null;
-  for (const row of rows) {
-    if (!Array.isArray(row) || row.length < 2 || typeof row[0] !== 'string' || typeof row[1] !== 'number') continue;
-    if (row[1] < RUN_MIN_SHARE || !moves.includes(row[0])) continue;
-    if (best === null || row[1] > best[1] || (row[1] === best[1] && compareIds(row[0], best[0]) < 0)) best = row as [ID, number];
+/** The role move the profile runs most (at least `RUN_MIN_SHARE`; ties by id ascending), or null. */
+function bestRunMove(moves: readonly string[], profile: Profile): string | null {
+  let best: [ID, number] | null = null;
+  for (const [move, share] of profile.moves) {
+    if (share < RUN_MIN_SHARE || !moves.includes(move)) continue;
+    if (best === null || share > best[1] || (share === best[1] && compareIds(move, best[0]) < 0)) best = [move, share];
   }
   return best === null ? null : best[0];
 }
 
 /**
- * The roles a species fills, at most one tag per role, in table order, from the strongest source: `runs` (it has a
- * usage entry and runs a role move at `RUN_MIN_SHARE` or more; `via` is the most-run one), then `ability` (its expected
- * ability is a role ability), then `can-learn` (only for a species with no usage entry: its learnset holds a signature
- * move; `via` is the first one in table order). An id that is not in the snapshot has no tags.
+ * The roles a species fills, at most one tag per role, in table order, from the strongest source: `runs` (its profile
+ * runs a role move at `RUN_MIN_SHARE` or more; `via` is the most-run one), then `ability` (its profile's ability is a
+ * role ability), then `can-learn` (only for a species with no usage entry and no set moves: its learnset holds a
+ * signature move; `via` is the first one in table order). The profile reads `sets[id]` where there is one (see
+ * `profileOf`). An id that is not in the snapshot has no tags.
  */
-export function speciesRoles(id: ID, snapshot: RoleSnapshot): RoleTag[] {
+export function speciesRoles(id: ID, snapshot: RoleSnapshot, sets?: Record<ID, unknown>): RoleTag[] {
   if (!Object.hasOwn(snapshot.species, id)) return [];
   const usage = snapshot.usage;
-  const entry = usage !== null && Object.hasOwn(usage.species, id) ? usage.species[id] : null;
+  const hasEntry = usage !== null && Object.hasOwn(usage.species, id);
   const rawLearnset = snapshot.learnsets !== undefined && Object.hasOwn(snapshot.learnsets, id) ? snapshot.learnsets[id] : [];
   const learnset: readonly string[] = Array.isArray(rawLearnset) ? rawLearnset : [];
-  const ability = expectedAbility(id, snapshot);
+  const profile = profileOf(id, snapshot, setFor(sets, id));
+  const ability = profile.ability;
 
   const tags: RoleTag[] = [];
   for (const role of ROLES) {
-    const run = entry === null ? null : bestRunMove(role.moves, entry.moves);
+    const run = bestRunMove(role.moves, profile);
     if (run !== null) {
-      tags.push({ role: role.id, source: 'runs', via: run });
+      tags.push({ role: role.id, source: 'runs', via: run, from: profile.movesFrom });
     } else if (ability !== null && role.abilities.includes(ability)) {
-      tags.push({ role: role.id, source: 'ability', via: ability });
-    } else if (entry === null) {
+      tags.push({ role: role.id, source: 'ability', via: ability, from: profile.abilityFrom });
+    } else if (!hasEntry && profile.movesFrom === 'ladder') {
       const learnable = role.signatureMoves.find((move) => learnset.includes(move));
-      if (learnable !== undefined) tags.push({ role: role.id, source: 'can-learn', via: learnable });
+      if (learnable !== undefined) tags.push({ role: role.id, source: 'can-learn', via: learnable, from: 'ladder' });
     }
   }
   return tags;
@@ -102,12 +100,13 @@ export function speciesRoles(id: ID, snapshot: RoleSnapshot): RoleTag[] {
 
 /**
  * The roles (table order) no roster member covers. A member covers a role with a `runs` or `ability` tag; a `can-learn`
- * tag does not. Roster ids that are not in the snapshot are ignored, so an empty roster lacks every role.
+ * tag does not. Members are read through their sets where `sets` has one. Roster ids that are not in the snapshot are
+ * ignored, so an empty roster lacks every role.
  */
-export function rosterLacks(roster: readonly ID[], snapshot: RoleSnapshot): RoleId[] {
+export function rosterLacks(roster: readonly ID[], snapshot: RoleSnapshot, sets?: Record<ID, unknown>): RoleId[] {
   const covered = new Set<RoleId>();
   for (const id of roster) {
-    for (const tag of speciesRoles(id, snapshot)) if (tag.source !== 'can-learn') covered.add(tag.role);
+    for (const tag of speciesRoles(id, snapshot, sets)) if (tag.source !== 'can-learn') covered.add(tag.role);
   }
   return ROLES.filter((role) => !covered.has(role.id)).map((role) => role.id);
 }

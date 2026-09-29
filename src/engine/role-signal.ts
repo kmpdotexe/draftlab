@@ -16,7 +16,7 @@ const MAX_FILLS = 3;
 export function roleSignal(
   roster: ID[],
   candidate: ID,
-  snapshot: Pick<EngineSnapshot, 'species' | 'usage' | 'learnsets'>,
+  snapshot: Pick<EngineSnapshot, 'species' | 'moves' | 'usage' | 'learnsets'>,
   lacked: readonly RoleId[],
 ): SignalOutput {
   if (!Object.hasOwn(snapshot.species, candidate)) return { score: null, reasons: [] };
@@ -37,7 +37,7 @@ export function roleSignal(
     filled.push({
       importance: role.importance,
       role: role.id,
-      reason: { kind: 'fills-role', role: tag.role, source: tag.source, via: tag.via },
+      reason: { kind: 'fills-role', role: tag.role, source: tag.source, via: tag.via, from: tag.from },
     });
   }
 

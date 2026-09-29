@@ -72,8 +72,8 @@ export type Reason =
   | { kind: 'covers-weakness'; type: TypeName; by: 'resists' | 'immune' | 'ability'; weakMembers: ID[]; ability?: string }
   | { kind: 'adds-weakness'; type: TypeName; weakMembers: ID[] }
   | { kind: 'adds-coverage'; types: TypeName[] }
-  /** `via` is the move id (`runs`, `can-learn`) or the ability name (`ability`). */
-  | { kind: 'fills-role'; role: RoleId; source: RoleSource; via: string }
+  /** `via` is the move id (`runs`, `can-learn`) or the ability name (`ability`); `from` is where that fact came from. */
+  | { kind: 'fills-role'; role: RoleId; source: RoleSource; via: string; from: ProfileSource }
   /** `side` is the candidate's side; `with` is the roster member on the other side and `from` how its half was known. */
   | { kind: 'completes-combo'; combo: ComboId; side: 'enabler' | 'beneficiary'; with: ID; from: ComboSource }
   | { kind: 'low-usage'; usage: number }
