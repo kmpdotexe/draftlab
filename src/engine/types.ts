@@ -29,7 +29,7 @@ export type RoleSource = 'runs' | 'ability' | 'can-learn';
 export type ProfileSource = 'set' | 'ladder';
 
 /** A partner combo. The combo table (`combos.ts`) says what enables each one and what benefits from it. */
-export type ComboId = 'trickroom' | 'redirectSetup' | 'rain' | 'sun' | 'sand' | 'snow' | 'electricTerrain' | 'helpingHand';
+export type ComboId = 'trickRoom' | 'redirectSetup' | 'rain' | 'sun' | 'sand' | 'snow' | 'electricTerrain' | 'helpingHand';
 
 /** How a roster member's half of a combo was known: its set, ladder usage, or its species data (base Speed). */
 export type ComboSource = 'set' | 'ladder' | 'species';
