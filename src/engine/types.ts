@@ -34,10 +34,10 @@ export type ComboId = 'trickRoom' | 'redirectSetup' | 'rain' | 'sun' | 'sand' | 
 /** How a roster member's half of a combo was known: its set, ladder usage, or its species data (base Speed). */
 export type ComboSource = 'set' | 'ladder' | 'species';
 
-export type SignalName = 'usageLift' | 'typeSynergy' | 'roleFit';
+export type SignalName = 'usageLift' | 'typeSynergy' | 'roleFit' | 'comboFit';
 
 /** All signals, in the order they appear in every `Suggestion.signals`. */
-export const SIGNAL_NAMES: readonly SignalName[] = ['usageLift', 'typeSynergy', 'roleFit'];
+export const SIGNAL_NAMES: readonly SignalName[] = ['usageLift', 'typeSynergy', 'roleFit', 'comboFit'];
 
 /** The draft as the engine sees it. `contextFor` builds one from a derived `DraftState`. */
 export interface SuggestContext {

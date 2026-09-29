@@ -1,8 +1,10 @@
 import type { ID } from '../domain/id';
 import { selectCandidates } from './candidates';
+import { comboSignal, openCombos } from './combo-signal';
 import { combineSignals, rankAll } from './combine';
 import { liftSignal } from './lift-signal';
 import { clamp, compareIds } from './math';
+import { readSets } from './profile';
 import { roleSignal } from './role-signal';
 import { rosterLacks } from './roles';
 import { sanitizeSnapshot } from './snapshot-check';
@@ -21,7 +23,7 @@ import {
   type Suggestion,
 } from './types';
 
-export const DEFAULT_WEIGHTS: Record<SignalName, number> = { usageLift: 0.35, typeSynergy: 0.3, roleFit: 0.25 };
+export const DEFAULT_WEIGHTS: Record<SignalName, number> = { usageLift: 0.35, typeSynergy: 0.3, roleFit: 0.25, comboFit: 0.1 };
 export const DEFAULT_LIMIT = 20;
 /** Below this usage fraction a candidate gets an informational `low-usage` reason. */
 export const LOW_USAGE = 0.03;
@@ -67,8 +69,8 @@ function usageReason(snapshot: EngineSnapshot, id: ID): Reason | null {
 /**
  * Ranks the pool species that fit the budget by how well they pair with the roster, with typed reasons. Pure and
  * deterministic; never throws on a plain-data (JSON) context and snapshot (an object with a throwing getter or a
- * Proxy can still throw). See the stage 1 and stage 2 specs for the candidate rules, the three signals, the
- * rank-based combining and the notes. `Suggestion.score` is fit compared with the rest of the candidate pool.
+ * Proxy can still throw). See the stage 1, 2 and 3 specs for the candidate rules, the four signals, the rank-based
+ * combining, the use of entered sets and the notes. `Suggestion.score` is fit compared with the rest of the candidate pool.
  */
 export function suggest(ctx: SuggestContext, snapshot: EngineSnapshot, options: SuggestOptions = {}): SuggestResult {
   const early = (notes: Note[]): SuggestResult => ({ suggestions: [], considered: 0, notes });
@@ -88,29 +90,37 @@ export function suggest(ctx: SuggestContext, snapshot: EngineSnapshot, options: 
   const weights = resolveWeights(opts);
   const limit = typeof opts.limit === 'number' && Number.isInteger(opts.limit) && opts.limit > 0 ? opts.limit : DEFAULT_LIMIT;
 
-  // Shared by every candidate this call, so it is computed once rather than inside the per-candidate role signal.
-  const lacked = rosterLacks(roster, view);
+  // The user's sets for roster members only; read defensively by the profile functions.
+  const sets = readSets(ctx.sets, roster);
+  // Shared by every candidate this call, so they are computed once rather than inside the per-candidate signals.
+  const lacked = rosterLacks(roster, view, sets);
+  const open = openCombos(roster, view, sets);
 
   // Every candidate's signals first: the percentile ranks are taken over the whole candidate pool.
   const outputs: Array<Record<SignalName, SignalOutput>> = selection.candidates.map(({ species }) => ({
     usageLift: liftSignal(roster, species, view.usage),
-    typeSynergy: typeSignal(roster, species, view),
+    typeSynergy: typeSignal(roster, species, view, sets),
     roleFit: roleSignal(roster, species, view, lacked),
+    comboFit: comboSignal(roster, species, view, open, sets),
   }));
-  const ranks = rankAll(
-    SIGNAL_NAMES,
-    outputs.map((output) => ({
-      usageLift: output.usageLift.score,
-      typeSynergy: output.typeSynergy.score,
-      roleFit: output.roleFit.score,
-    })),
-  );
+  const scoresOf = (output: Record<SignalName, SignalOutput>): Record<SignalName, number | null> => ({
+    usageLift: output.usageLift.score,
+    typeSynergy: output.typeSynergy.score,
+    roleFit: output.roleFit.score,
+    comboFit: output.comboFit.score,
+  });
+  const allScores = outputs.map(scoresOf);
+  const ranks = rankAll(SIGNAL_NAMES, allScores);
+  // A signal that no candidate has data for says nothing this call: it gets weight 0 instead of counting as neutral.
+  for (const name of SIGNAL_NAMES) {
+    if (allScores.every((scores) => scores[name] === null)) weights[name] = 0;
+  }
 
   const scored: Suggestion[] = [];
   let unscored = 0;
   selection.candidates.forEach(({ species, price }, index) => {
     const output = outputs[index];
-    const scores = { usageLift: output.usageLift.score, typeSynergy: output.typeSynergy.score, roleFit: output.roleFit.score };
+    const scores = allScores[index];
     const combined = combineSignals(SIGNAL_NAMES, scores, ranks[index], weights);
     if (combined === null) {
       unscored += 1;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { speciesEntry } from '../domain/test-support';
 import { suggest } from './suggest';
-import { usageData, usageEntry } from './test-support';
+import { typedMove, usageData, usageEntry } from './test-support';
 import type { EngineSnapshot, SuggestContext, SuggestOptions } from './types';
 
 /**
@@ -68,11 +68,11 @@ describe('suggest: ranking', () => {
     expect(result.notes).toEqual([LACKS_NINE]);
   });
 
-  it('gives every suggestion all three signals in a fixed order, with score, rank, effective weight and reasons', () => {
+  it('gives every suggestion all four signals in a fixed order, with score, rank, effective weight and reasons', () => {
     const top = suggest(ctx(), snapshot()).suggestions[0];
     expect(top.species).toBe('stlb');
     expect(top.price).toBe(6);
-    expect(top.signals.map((s) => s.signal)).toEqual(['usageLift', 'typeSynergy', 'roleFit']);
+    expect(top.signals.map((s) => s.signal)).toEqual(['usageLift', 'typeSynergy', 'roleFit', 'comboFit']);
     expect(top.signals[0]).toMatchObject({ score: expect.closeTo(0.6666667, 6), rank: expect.closeTo(0.6666667, 6), weight: expect.closeTo(0.3888889, 6) });
     expect(top.signals[0].reasons).toEqual([{ kind: 'pairs-often-with', with: 'dra1', lift: 2 }]);
     expect(top.signals[1]).toMatchObject({ score: expect.closeTo(0.4830882, 6), rank: 0.75, weight: expect.closeTo(0.3333333, 6) });
@@ -83,7 +83,10 @@ describe('suggest: ranking', () => {
       { kind: 'adds-coverage', types: ['Fairy', 'Ice', 'Rock'] },
     ]);
     expect(top.signals[2]).toEqual({ signal: 'roleFit', score: 0, rank: 0.5, weight: expect.closeTo(0.2777778, 6), reasons: [] });
-    // Usage 0.1 is above the low-usage line, so there is no informational reason; the flat list is the three signals' reasons in order.
+    // dra1 opens no combo (base Speed 80, no combo move or ability), so comboFit has no data for anyone: weight 0, and
+    // the other three keep exactly their stage 2 weights.
+    expect(top.signals[3]).toEqual({ signal: 'comboFit', score: null, rank: 0.5, weight: 0, reasons: [] });
+    // Usage 0.1 is above the low-usage line, so there is no informational reason; the flat list is the signals' reasons in order.
     expect(top.reasons).toEqual([...top.signals[0].reasons, ...top.signals[1].reasons, ...top.signals[2].reasons]);
   });
 
@@ -280,6 +283,22 @@ describe('suggest: notes and early results', () => {
     for (const suggestion of result.suggestions) expect(suggestion.signals[0].score).toBeNull();
   });
 
+  it('leaves out a signal that no candidate has data for, instead of counting it as neutral', () => {
+    // No usage data: usageLift has no data for anyone, and comboFit neither (dra1 opens no combo), so both get weight 0.
+    // Type ranks as in the header (stl* 0.75, grd 0.25, nod 0), role 0.5 for everyone; weights 0.3 and 0.25 (sum 0.55):
+    //   stl* = (0.3 x 0.75 + 0.25 x 0.5) / 0.55 = 0.6363636   grd = (0.3 x 0.25 + 0.125) / 0.55 = 0.3636364
+    //   nod  = (0.3 x 0 + 0.125) / 0.55 = 0.2272727
+    // (Stage 2 counted the missing lift at half weight, which gave 0.6034483 for stl*: the ranking is the same, only the scale.)
+    const s = snapshot();
+    s.usage = null;
+    const result = suggest(ctx(), s);
+    expect(result.suggestions.map((x) => x.species)).toEqual(['stlb', 'stlc', 'stla', 'grd', 'nod']);
+    expect(result.suggestions[0].score).toBeCloseTo(0.6363636, 6);
+    expect(result.suggestions[3].score).toBeCloseTo(0.3636364, 6);
+    expect(result.suggestions[4].score).toBeCloseTo(0.2272727, 6);
+    expect(result.suggestions[0].signals.map((x) => x.weight)).toEqual([0, expect.closeTo(0.5454545, 6), expect.closeTo(0.4545455, 6), 0]);
+  });
+
   it('lists the notes in a fixed order', () => {
     const s = snapshot();
     s.usage = null;
@@ -356,6 +375,94 @@ describe('suggest: roster-lacks-roles', () => {
       kind: 'roster-lacks-roles',
       roles: ['redirection', 'speedControl', 'intimidate', 'weatherTerrain', 'pivot', 'screens', 'support', 'priority'],
     });
+  });
+});
+
+describe('suggest: combos and entered sets', () => {
+  /**
+   * Roster `trr` (Psychic) runs Trick Room on 50% of ladder sets, so it covers speedControl and opens trickRoom.
+   * Candidates `slowa` (base Speed 40) and `fast` (80) are Normal-typed twins with no usage entry and no learnset.
+   * usageLift has no data for anyone (no usage entries for the candidates): weight 0. typeSynergy ties (rank 0.5 each),
+   * roleFit is 0 for both (rank 0.5 each). comboFit: slowa completes trickRoom (1 / 1 = 1, rank 1), fast 0 (rank 0).
+   * Weights 0.3, 0.25, 0.1 (sum 0.65):
+   *   slowa = (0.3 x 0.5 + 0.25 x 0.5 + 0.1 x 1) / 0.65 = 0.5769231   fast = (0.15 + 0.125 + 0) / 0.65 = 0.4230769
+   *   effective weights 0.4615385, 0.3846154, 0.1538462
+   */
+  const stats = (spe: number) => ({ hp: 80, atk: 80, def: 80, spa: 80, spd: 80, spe });
+  const trSnapshot = (): EngineSnapshot => ({
+    species: {
+      trr: speciesEntry('trr', 'trr', { num: 1, types: ['Psychic'] }),
+      slowa: speciesEntry('slowa', 'slowa', { num: 2, baseStats: stats(40) }),
+      fast: speciesEntry('fast', 'fast', { num: 3, baseStats: stats(80) }),
+    },
+    moves: {
+      trickroom: typedMove('trickroom', 'Psychic', 'Status', 0),
+      protect: typedMove('protect', 'Normal', 'Status', 0),
+    },
+    usage: usageData([usageEntry('trr', { moves: [['trickroom', 0.5]] })]),
+  });
+  const trCtx = (sets?: unknown): SuggestContext => ({
+    roster: ['trr'],
+    pool: ['fast', 'slowa'],
+    prices: { slowa: 1, fast: 1 },
+    remaining: 100,
+    openSlots: 1,
+    ...(sets === undefined ? {} : { sets: sets as SuggestContext['sets'] }),
+  });
+
+  it('adds the combo signal, with its reason, when the roster opens a combo', () => {
+    const result = suggest(trCtx(), trSnapshot());
+    expect(result.suggestions.map((s) => s.species)).toEqual(['slowa', 'fast']);
+    const [slowa, fast] = result.suggestions;
+    expect(slowa.score).toBeCloseTo(0.5769231, 6);
+    expect(fast.score).toBeCloseTo(0.4230769, 6);
+    expect(slowa.signals[3]).toEqual({
+      signal: 'comboFit',
+      score: 1,
+      rank: 1,
+      weight: expect.closeTo(0.1538462, 6),
+      reasons: [{ kind: 'completes-combo', combo: 'trickRoom', side: 'beneficiary', with: 'trr', from: 'ladder' }],
+    });
+    expect(slowa.signals[0]).toMatchObject({ score: null, weight: 0 });
+    // The flat list: type reasons (a Normal candidate is immune to the Psychic member's Ghost weakness; both candidates
+    // share it, so type still ties), no role reasons, the combo reason, then the informational usage reason.
+    expect(slowa.reasons).toEqual([
+      { kind: 'covers-weakness', type: 'Ghost', by: 'immune', weakMembers: ['trr'] },
+      { kind: 'completes-combo', combo: 'trickRoom', side: 'beneficiary', with: 'trr', from: 'ladder' },
+      { kind: 'no-ladder-usage' },
+    ]);
+    expect(fast.signals[1].score).toBe(slowa.signals[1].score);
+  });
+
+  it('reads the roster member\'s entered set: a set without Trick Room closes the combo and makes speed control lacked', () => {
+    const result = suggest(trCtx({ trr: { species: 'trr', moves: ['protect'] } }), trSnapshot());
+    // comboFit has no data for anyone now: weight 0. Type and role tie: both 0.5, ordered by price then id.
+    expect(result.suggestions.map((s) => [s.species, s.score])).toEqual([['fast', 0.5], ['slowa', 0.5]]);
+    for (const s of result.suggestions) expect(s.signals[3]).toMatchObject({ score: null, weight: 0 });
+    expect(result.notes).toEqual([{ kind: 'roster-lacks-roles', roles: ['fakeOut', ...LACKS_NINE.roles] }]);
+  });
+
+  it('says a combo half came from the set when the set supplies it', () => {
+    const s = trSnapshot();
+    s.usage = usageData([usageEntry('trr', { moves: [['protect', 0.9]] })]); // the ladder trr does not run Trick Room
+    expect(suggest(trCtx(), s).suggestions[0].signals[3].score).toBeNull();
+    const withSet = suggest(trCtx({ trr: { moves: ['trickroom'] } }), s).suggestions[0];
+    expect(withSet.species).toBe('slowa');
+    expect(withSet.signals[3].reasons).toEqual([{ kind: 'completes-combo', combo: 'trickRoom', side: 'beneficiary', with: 'trr', from: 'set' }]);
+  });
+
+  it('gives the same result with no sets, an empty set table, a malformed one, or sets for species off the roster', () => {
+    const baseline = suggest(trCtx(), trSnapshot());
+    for (const sets of [{}, null, 5, 'x', [], { slowa: { moves: ['trickroom'] } }, { trr: 'x' }]) {
+      expect(suggest(trCtx(sets), trSnapshot()), JSON.stringify(sets)).toEqual(baseline);
+    }
+  });
+
+  it('does not modify the sets', () => {
+    const sets = { trr: { species: 'trr', moves: ['protect', 'trickroom'] } };
+    const before = JSON.stringify(sets);
+    suggest(trCtx(sets), trSnapshot());
+    expect(JSON.stringify(sets)).toBe(before);
   });
 });
 

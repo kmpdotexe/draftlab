@@ -1,6 +1,7 @@
 import type { DraftState } from '../domain/derive';
 import type { ID } from '../domain/id';
 import type { LeagueConfig } from '../domain/league';
+import type { PokemonSet } from '../domain/set';
 import type { Snapshot } from '../domain/types';
 import { compareIds } from './math';
 import type { SuggestContext, SuggestOptions } from './types';
@@ -21,12 +22,36 @@ export interface CandidateSelection {
 
 const isFiniteNumber = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** A copy of `sets`: each entry that is an object is copied, with its `moves` array and `points` object copied too. */
+function copySets(sets: unknown): Record<ID, PokemonSet> | null {
+  if (!isRecord(sets)) return null;
+  const copy: Record<ID, PokemonSet> = {};
+  for (const [id, set] of Object.entries(sets)) {
+    if (!isRecord(set)) continue;
+    const entry: Record<string, unknown> = { ...set };
+    if (Array.isArray(set.moves)) entry.moves = [...set.moves];
+    if (isRecord(set.points)) entry.points = { ...set.points };
+    // `Object.defineProperty`, not assignment, so an id such as `__proto__` stays an own entry.
+    Object.defineProperty(copy, id, { value: entry as unknown as PokemonSet, enumerable: true, writable: true, configurable: true });
+  }
+  return copy;
+}
+
 /**
  * The context for one drafter, from a derived `DraftState`. Derive the draft once and call this for each
- * question. Returns copies of the roster, pool and prices, so the caller can change the context without touching the
- * draft or the league. Returns null when the drafter index is not an integer in range or the inputs are malformed.
+ * question. Returns copies of the roster, pool, prices and (when given as an object) the user's entered sets
+ * (`DraftFile.sets`), so the caller can change the context without touching the draft, the league or the sets.
+ * Returns null when the drafter index is not an integer in range or the inputs are malformed.
  */
-export function contextFor(league: LeagueConfig, draft: DraftState, drafterIndex: number): SuggestContext | null {
+export function contextFor(
+  league: LeagueConfig,
+  draft: DraftState,
+  drafterIndex: number,
+  sets?: Record<ID, PokemonSet>,
+): SuggestContext | null {
   if (typeof league !== 'object' || league === null || typeof league.prices !== 'object' || league.prices === null) {
     return null;
   }
@@ -36,13 +61,16 @@ export function contextFor(league: LeagueConfig, draft: DraftState, drafterIndex
   if (!Number.isInteger(drafterIndex) || drafterIndex < 0 || drafterIndex >= draft.drafters.length) return null;
   const drafter = draft.drafters[drafterIndex];
   if (typeof drafter !== 'object' || drafter === null || !Array.isArray(drafter.roster)) return null;
-  return {
+  const context: SuggestContext = {
     roster: [...drafter.roster],
     pool: [...draft.pool],
     prices: { ...league.prices },
     remaining: drafter.remaining,
     openSlots: drafter.openSlots,
   };
+  const copied = copySets(sets);
+  if (copied !== null) context.sets = copied;
+  return context;
 }
 
 /** The usage fraction of a species, or 0 when it has no usage entry or there is no usage data. */

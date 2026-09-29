@@ -225,6 +225,30 @@ describe('contextFor', () => {
     expect(contextFor(league, { drafters: [{ remaining: 5, openSlots: 1 }], pool: [] } as unknown as DraftState, 0)).toBeNull();
   });
 
+  it('adds a copy of the entered sets when given an object, and no sets field otherwise', () => {
+    const sets = { b: { species: 'b', moves: ['tackle'], points: { hp: 32, atk: 32, def: 2, spa: 0, spd: 0, spe: 0 } } };
+    const context = contextFor(league, draft, 1, sets);
+    expect(context?.sets).toEqual(sets);
+    expect(context?.sets).not.toBe(sets);
+    expect(context?.sets?.b).not.toBe(sets.b);
+    expect(context?.sets?.b.moves).not.toBe(sets.b.moves);
+    expect(context?.sets?.b.points).not.toBe(sets.b.points);
+    // Changing the copy leaves the original alone.
+    context?.sets?.b.moves?.push('surf');
+    expect(sets.b.moves).toEqual(['tackle']);
+    for (const bad of [undefined, null, 5, 'x', [1]]) {
+      const plain = contextFor(league, draft, 1, bad as never);
+      expect(plain !== null && Object.hasOwn(plain, 'sets'), String(bad)).toBe(false);
+    }
+  });
+
+  it('copies only the set entries that are objects, and keeps an id such as __proto__ as an own entry', () => {
+    const given = JSON.parse('{"__proto__": {"moves": ["tackle"]}, "b": 5, "c": {"ability": "x"}}');
+    const context = contextFor(league, draft, 1, given);
+    expect(Object.keys(context?.sets ?? {})).toEqual(['__proto__', 'c']);
+    expect(Object.getPrototypeOf(context?.sets)).toBe(Object.prototype);
+  });
+
   it('returns copies, so changing the context leaves the draft and the league alone', () => {
     const context = contextFor(league, draft, 1);
     expect(context).not.toBeNull();

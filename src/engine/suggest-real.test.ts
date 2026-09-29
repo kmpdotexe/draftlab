@@ -73,14 +73,15 @@ describe.each([
     expect(result.suggestions.map((s) => s.species).sort()).toEqual([...expectedIds].sort());
   });
 
-  it('gives every suggestion a valid score, the right price, all three signals in order, and weights that sum to 1', () => {
+  it('gives every suggestion a valid score, the right price, all four signals in order, and weights that sum to 1', () => {
     for (const s of result.suggestions) {
       expect(s.score, s.species).toBeGreaterThanOrEqual(0);
       expect(s.score, s.species).toBeLessThanOrEqual(1);
       expect(s.price, s.species).toBe(PRICES[s.species]);
-      expect(s.signals.map((signal) => signal.signal), s.species).toEqual(['usageLift', 'typeSynergy', 'roleFit']);
+      expect(s.signals.map((signal) => signal.signal), s.species).toEqual(['usageLift', 'typeSynergy', 'roleFit', 'comboFit']);
       expect(s.signals[1].score, s.species).not.toBeNull(); // a non-empty roster always has type data
       expect(s.signals[2].score, s.species).not.toBeNull(); // the roster lacks something for every real candidate here
+      expect(s.signals[3].score, s.species).not.toBeNull(); // each of these rosters opens at least one combo (see the combo tests)
       const weightSum = s.signals.reduce((sum, signal) => sum + signal.weight, 0);
       expect(weightSum, s.species).toBeCloseTo(1, 9);
     }
