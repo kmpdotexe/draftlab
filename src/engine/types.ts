@@ -1,4 +1,5 @@
 import type { ID } from '../domain/id';
+import type { PokemonSet } from '../domain/set';
 import type { Snapshot } from '../domain/types';
 import type { TypeName } from './typechart';
 
@@ -24,6 +25,15 @@ export type RoleId =
 /** Where a role tag comes from: a move the species runs, its expected ability, or a signature move it can learn. */
 export type RoleSource = 'runs' | 'ability' | 'can-learn';
 
+/** Where a profile fact came from: the user's entered set, or ladder usage and species data. */
+export type ProfileSource = 'set' | 'ladder';
+
+/** A partner combo. The combo table (`combos.ts`) says what enables each one and what benefits from it. */
+export type ComboId = 'trickroom' | 'redirectSetup' | 'rain' | 'sun' | 'sand' | 'snow' | 'electricTerrain' | 'helpingHand';
+
+/** How a roster member's half of a combo was known: its set, ladder usage, or its species data (base Speed). */
+export type ComboSource = 'set' | 'ladder' | 'species';
+
 export type SignalName = 'usageLift' | 'typeSynergy' | 'roleFit';
 
 /** All signals, in the order they appear in every `Suggestion.signals`. */
@@ -40,6 +50,8 @@ export interface SuggestContext {
   remaining: number;
   /** Roster slots still to fill, including the one this pick will fill. */
   openSlots: number;
+  /** The user's entered sets, keyed by species id (`DraftFile.sets`). Optional; malformed entries are ignored. */
+  sets?: Record<ID, PokemonSet>;
 }
 
 export interface SuggestOptions {
@@ -62,6 +74,8 @@ export type Reason =
   | { kind: 'adds-coverage'; types: TypeName[] }
   /** `via` is the move id (`runs`, `can-learn`) or the ability name (`ability`). */
   | { kind: 'fills-role'; role: RoleId; source: RoleSource; via: string }
+  /** `side` is the candidate's side; `with` is the roster member on the other side and `from` how its half was known. */
+  | { kind: 'completes-combo'; combo: ComboId; side: 'enabler' | 'beneficiary'; with: ID; from: ComboSource }
   | { kind: 'low-usage'; usage: number }
   | { kind: 'no-ladder-usage' };
 

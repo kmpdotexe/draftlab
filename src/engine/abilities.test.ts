@@ -105,6 +105,21 @@ describe('immunityOf', () => {
     expect(immunityOf('a', levitating)).toEqual({ type: 'Ground', ability: 'Levitate' });
   });
 
+  it('reads the ability from an entered set when the species can have it', () => {
+    // Two abilities and no usage: no expected ability, so no immunity, until a set names Levitate.
+    const s = snap({ a: ['Levitate', 'Pressure'] });
+    expect(immunityOf('a', s)).toBeNull();
+    expect(immunityOf('a', s, { a: { ability: 'levitate' } })).toEqual({ type: 'Ground', ability: 'Levitate' });
+    // A set ability outside the table overrides an expected immunity ability.
+    const one = snap({ b: ['Levitate'] });
+    expect(immunityOf('b', one, { b: { ability: 'Intimidate' } })).toEqual({ type: 'Ground', ability: 'Levitate' }); // not listed: ignored
+    const both = snap({ c: ['Levitate', 'Pressure'] }, usageData([usageEntry('c', { abilities: [['levitate', 0.9]] })]));
+    expect(immunityOf('c', both, { c: { ability: 'pressure' } })).toBeNull();
+    // A set for another species, or an empty table, changes nothing.
+    expect(immunityOf('a', s, { other: { ability: 'levitate' } })).toBeNull();
+    expect(immunityOf('c', both, {})).toEqual({ type: 'Ground', ability: 'Levitate' });
+  });
+
   it('does not treat names on the prototype as table abilities', () => {
     expect(immunityOf('a', snap({ a: ['constructor'] }))).toBeNull();
     expect(immunityOf('a', snap({ a: ['toString'] }))).toBeNull();
