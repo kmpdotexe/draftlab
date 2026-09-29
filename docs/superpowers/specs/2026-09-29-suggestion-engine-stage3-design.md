@@ -121,6 +121,8 @@ A move "is run" by a profile when its share is at least `RUN_MIN_SHARE` (0.1, st
 - **`attackingTypes(id, snapshot, sets?)`** takes the damaging moves from the profile at `OFFENSIVE_MIN_MOVE_SHARE` or more (set moves always count).
 - **`typeSignal(roster, candidate, snapshot, sets?)`** and **`roleSignal(roster, candidate, snapshot, lacked, sets?)`** pass `sets` to the roster side only; the candidate is always looked up without sets.
 
+*Amended at plan time (2026-09-29):* `roleSignal` keeps its stage 2 signature `roleSignal(roster, candidate, snapshot, lacked)`: its roster side is entirely `lacked`, which the caller computes with `sets`, and the candidate never reads sets.
+
 With no `sets` (or `{}`), every one of these returns exactly what stage 2 returns, apart from the added `from: 'ladder'` field.
 
 ## Combos (`src/engine/combos.ts`)

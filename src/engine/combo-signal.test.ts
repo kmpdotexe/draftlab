@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { speciesEntry } from '../domain/test-support';
 import { comboSignal, openCombos } from './combo-signal';
 import { typedMove, usageData, usageEntry } from './test-support';
+import type { ComboId } from './types';
 import type { EngineSnapshot } from './types';
 
 const stats = (spe: number) => ({ hp: 80, atk: 80, def: 80, spa: 80, spd: 80, spe });
@@ -165,5 +166,9 @@ describe('comboSignal: no data and robustness', () => {
     const first = signal(roster, 'slowswim', s, sets);
     expect(signal(roster, 'slowswim', s, sets)).toEqual(first);
     expect(JSON.stringify({ s, roster, sets })).toBe(before);
+  });
+
+  it('has no data when the open list names no known combo', () => {
+    expect(comboSignal(['tr'], 'slow', snapshot(), ['nope' as ComboId])).toEqual({ score: null, reasons: [] });
   });
 });

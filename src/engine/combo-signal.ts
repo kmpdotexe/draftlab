@@ -97,6 +97,8 @@ export function comboSignal(
     });
   }
 
+  if (total === 0) return { score: null, reasons: [] };
+
   completed.sort((a, b) => b.importance - a.importance || compareIds(a.combo, b.combo));
   return { score: earned / total, reasons: completed.slice(0, MAX_COMPLETES).map((entry) => entry.reason) };
 }

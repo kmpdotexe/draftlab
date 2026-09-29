@@ -20,6 +20,9 @@ const snapshot = (): EngineSnapshot => ({
     spread: speciesEntry('spread', 'Spread'),
     chip: speciesEntry('chip', 'Chip'),
     statusSpread: speciesEntry('statusSpread', 'StatusSpread'),
+    statusWave: speciesEntry('statusWave', 'StatusWave'),
+    quake: speciesEntry('quake', 'Quake'),
+    exact70: speciesEntry('exact70', 'Exact70'),
   },
   moves: {
     hurricane: typedMove('hurricane', 'Flying', 'Special', 110),
@@ -27,12 +30,18 @@ const snapshot = (): EngineSnapshot => ({
     icywind: { ...typedMove('icywind', 'Ice', 'Special', 55), target: 'allAdjacentFoes' },
     growl: { ...typedMove('growl', 'Normal', 'Status', 0), target: 'allAdjacentFoes' },
     trickroom: typedMove('trickroom', 'Psychic', 'Status', 0),
+    statuswave: { ...typedMove('statuswave', 'Normal', 'Status', 80), target: 'allAdjacentFoes' },
+    earthquake: { ...typedMove('earthquake', 'Ground', 'Physical', 100), target: 'allAdjacent' },
+    burningjealousy: { ...typedMove('burningjealousy', 'Fire', 'Special', 70), target: 'allAdjacentFoes' },
   },
   usage: usageData([
     usageEntry('swim', { moves: [['hurricane', 0.3]] }),
     usageEntry('spread', { moves: [['rockslide', 0.5]] }),
     usageEntry('chip', { moves: [['icywind', 0.9]] }),
     usageEntry('statusSpread', { moves: [['growl', 0.9]] }),
+    usageEntry('statusWave', { moves: [['statuswave', 0.5]] }),
+    usageEntry('quake', { moves: [['earthquake', 0.5]] }),
+    usageEntry('exact70', { moves: [['burningjealousy', 0.5]] }),
   ]),
 });
 const match = (side: ComboSide, id: string, s = snapshot(), set?: unknown) => sideMatch(side, id, profileOf(id, s, set), s);
@@ -110,5 +119,11 @@ describe('sideMatch', () => {
   it('matches nothing for a species that is not in the snapshot', () => {
     const s = snapshot();
     for (const id of ['ghost', 'constructor']) expect(sideMatch(byId.trickRoom.beneficiary, id, profileOf('swim', s), s), id).toBeNull();
+  });
+
+  it('counts a spread attack by category, on both spread targets, and at exactly 70 base power', () => {
+    expect(match(byId.helpingHand.beneficiary, 'statusWave')).toBeNull(); // Status, even at 80 base power
+    expect(match(byId.helpingHand.beneficiary, 'quake')).toBe('ladder'); // allAdjacent, 100
+    expect(match(byId.helpingHand.beneficiary, 'exact70')).toBe('ladder'); // allAdjacentFoes, exactly 70
   });
 });
