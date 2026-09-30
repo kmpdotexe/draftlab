@@ -9,7 +9,10 @@
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "typecheck": "tsc --noEmit",
-    "sync": "tsx sync/index.ts"
+    "sync": "tsx sync/index.ts",
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview"
   },
   "dependencies": {
     "pokemon-showdown": "^0.11.11",
