@@ -132,7 +132,15 @@ export function Workspace({ data, storage, actions }: Props) {
           onSave={(league: LeagueConfig) => {
             if (apply({ type: 'set-league', league }).errors.length === 0) setView('room');
           }}
-          onCancel={file === null ? undefined : () => setView('room')}
+          onCancel={
+            file === null
+              ? undefined
+              : () => {
+                  stateRef.current = { ...stateRef.current, errors: [] };
+                  setState(stateRef.current);
+                  setView('room');
+                }
+          }
           onNewLeague={
             file === null
               ? undefined

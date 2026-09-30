@@ -212,6 +212,19 @@ describe('export, import and recovery', () => {
     expect(await screen.findByRole('heading', { name: 'Set up your league' })).toBeTruthy();
     expect(saved.has(STORAGE_KEY)).toBe(false);
   });
+
+  it('shows the warnings of an imported file until dismissed', async () => {
+    const user = userEvent.setup();
+    const file = leagueFile(['incineroar']);
+    const withUnknownBan: DraftFile = { ...file, league: { ...file.league, extraBans: ['zz'] } };
+    render(<App load={load} storage={fakeStorage().storage} actions={fakeActions().actions} />);
+    await screen.findByRole('heading', { name: 'Set up your league' });
+    await user.upload(screen.getByLabelText('Import a draft file'), new File([serializeDraftFile(withUnknownBan)], 'w.json'));
+    expect(await screen.findByText('Pick 2 of 6 · Round 1 · You are on the clock')).toBeTruthy();
+    expect(screen.getByText('league.extraBans[0]')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }));
+    expect(screen.queryByText('league.extraBans[0]')).toBeNull();
+  });
 });
 
 describe('editing the league mid-draft', () => {
@@ -234,6 +247,45 @@ describe('editing the league mid-draft', () => {
     await user.type(screen.getByLabelText('League name'), 'Renamed');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(await screen.findByRole('heading', { name: 'Renamed' })).toBeTruthy();
+  });
+
+  it('clears a refusal when you go back to the draft without saving', async () => {
+    const user = userEvent.setup();
+    const { storage } = fakeStorage(stored(leagueFile(['incineroar'])));
+    render(<App load={load} storage={storage} actions={fakeActions().actions} />);
+    await screen.findByText('Pick 2 of 6 · Round 1 · You are on the clock');
+    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    await user.type(screen.getByLabelText('Search'), 'Incineroar');
+    await user.click(screen.getByLabelText('Ban Incineroar'));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByText('this would break pick 1: "incineroar" is banned in this league')).toBeTruthy();
+
+    await user.click(screen.getByRole('button', { name: 'Back to the draft' }));
+    expect(await screen.findByText('Pick 2 of 6 · Round 1 · You are on the clock')).toBeTruthy();
+    expect(screen.queryByText(/this would break pick 1/)).toBeNull();
+  });
+
+  it('asks before starting a new league, offers a download, then clears the draft', async () => {
+    const user = userEvent.setup();
+    const { actions, questions, downloads } = fakeActions([false, true, true]);
+    const { storage, data: saved } = fakeStorage(stored(leagueFile(['incineroar'])));
+    render(<App load={load} storage={storage} actions={actions} />);
+    await screen.findByText('Pick 2 of 6 · Round 1 · You are on the clock');
+    await user.click(screen.getByRole('button', { name: 'Setup' }));
+
+    await user.click(screen.getByRole('button', { name: 'New league' }));
+    expect(picksIn(saved)).toEqual(['incineroar']);
+    expect(downloads).toEqual([]);
+
+    await user.click(screen.getByRole('button', { name: 'New league' }));
+    expect(questions).toEqual([
+      'Start a new league? The current draft will be deleted.',
+      'Start a new league? The current draft will be deleted.',
+      'Download a copy of the current draft first?',
+    ]);
+    expect(downloads).toEqual([{ filename: 'test-league.draftlab.json', text: serializeDraftFile(leagueFile(['incineroar'])) }]);
+    expect(await screen.findByRole('button', { name: 'Start draft' })).toBeTruthy();
+    expect(saved.has(STORAGE_KEY)).toBe(false);
   });
 });
 
