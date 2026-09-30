@@ -73,13 +73,11 @@ export function DraftRoom({ data, file, names, errors, onPick, onUndo, onExport,
           </button>
         </div>
       </header>
-      {errors.length > 0 && (
-        <div className="refusal" aria-live="polite">
-          {errors.map((p) => (
-            <p key={`${p.path}:${p.message}`}>{p.message}</p>
-          ))}
-        </div>
-      )}
+      <div className={errors.length > 0 ? 'refusal' : undefined} aria-live="polite">
+        {errors.map((p) => (
+          <p key={`${p.path}:${p.message}`}>{p.message}</p>
+        ))}
+      </div>
       <div className="columns">
         <div className="column">
           <PickEntry league={league} draft={draft} names={names} onPick={onPick} />

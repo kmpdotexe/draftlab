@@ -56,7 +56,14 @@ export function Workspace({ data, storage, actions }: Props) {
   };
 
   const importFile = async (chosen: File) => {
-    const parsed = parseDraftFile(await chosen.text(), data.snapshot);
+    let text: string;
+    try {
+      text = await chosen.text();
+    } catch {
+      setImportErrors([{ path: 'file', message: 'the file could not be read' }]);
+      return;
+    }
+    const parsed = parseDraftFile(text, data.snapshot);
     if (!parsed.ok) {
       setImportErrors(parsed.errors);
       return;
@@ -114,15 +121,17 @@ export function Workspace({ data, storage, actions }: Props) {
           </button>
         </div>
       )}
-      {importErrors.length > 0 && (
-        <div className="banner warning" aria-live="polite">
-          <p>That file could not be imported; nothing was changed.</p>
-          <ProblemList problems={importErrors} />
-          <button type="button" onClick={() => setImportErrors([])}>
-            Dismiss
-          </button>
-        </div>
-      )}
+      <div aria-live="polite">
+        {importErrors.length > 0 && (
+          <div className="banner warning">
+            <p>That file could not be imported; nothing was changed.</p>
+            <ProblemList problems={importErrors} />
+            <button type="button" onClick={() => setImportErrors([])}>
+              Dismiss
+            </button>
+          </div>
+        )}
+      </div>
       {view === 'setup' || file === null ? (
         <SetupView
           key={file === null ? 'new' : 'edit'}

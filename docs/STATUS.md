@@ -1,6 +1,6 @@
 # Draft Lab: project status
 
-Last updated 2026-09-21. This file is a map for someone new to the repo: where the project stands, how it has been built, and what is deliberately unfinished. The README covers commands and data layout.
+Last updated 2026-09-30. This file is a map for someone new to the repo: where the project stands, how it has been built, and what is deliberately unfinished. The README covers commands and data layout.
 
 ## What it is
 
@@ -10,7 +10,7 @@ The UI so far is the draft room: league setup, a live draft with suggestions, au
 
 ## Where we are
 
-All work so far happened on 2026-09-20 and 2026-09-21. Each increment went through the same cycle (see "How it is built").
+Work so far happened between 2026-09-20 and 2026-09-30. Each increment went through the same cycle (see "How it is built").
 
 | # | Increment | Spec and plan (in `docs/superpowers/`) | State |
 |---|---|---|---|
@@ -25,7 +25,7 @@ All work so far happened on 2026-09-20 and 2026-09-21. Each increment went throu
 | 9 | App shell, increment 2: the teambuilder | not started | |
 | 10 | App shell, increment 3: hosting and data refresh | not started | |
 
-Tests, all passing: 696 unit tests (including the UI flow tests, which run in jsdom) and 21 integration tests.
+Tests, all passing: 699 unit tests (including the UI flow tests, which run in jsdom) and 21 integration tests.
 
 ## Architecture
 

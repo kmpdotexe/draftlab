@@ -71,6 +71,34 @@ describe('setting up a league', () => {
     expect(stored.has(STORAGE_KEY)).toBe(false);
   });
 
+  it('does not submit the league form when Enter is pressed in the price table search box', async () => {
+    const user = userEvent.setup();
+    const { storage, data: stored } = fakeStorage();
+    render(<App load={load} storage={storage} actions={fakeActions().actions} />);
+    await screen.findByRole('heading', { name: 'Set up your league' });
+
+    await user.type(screen.getByLabelText('League name'), 'Test League');
+    await user.type(screen.getByLabelText(/Drafters/), 'Ana{Enter}Ben');
+
+    await user.type(screen.getByLabelText('Search'), 'Torkoal{Enter}');
+
+    expect(screen.getByRole('heading', { name: 'Set up your league' })).toBeTruthy();
+    expect(screen.queryByText(/on the clock/)).toBeNull();
+    expect(stored.has(STORAGE_KEY)).toBe(false);
+  });
+
+  it('shows the import-error banner when the chosen file cannot be read', async () => {
+    const user = userEvent.setup();
+    render(<App load={load} storage={fakeStorage().storage} actions={fakeActions().actions} />);
+    await screen.findByRole('heading', { name: 'Set up your league' });
+
+    const bad = new File(['x'], 'x.json');
+    bad.text = () => Promise.reject(new Error('gone'));
+    await user.upload(screen.getByLabelText('Import a draft file'), bad);
+
+    expect(await screen.findByText('That file could not be imported; nothing was changed.')).toBeTruthy();
+  });
+
   it('imports a saved draft file from the setup screen', async () => {
     const user = userEvent.setup();
     const file: DraftFile = {

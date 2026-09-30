@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
 import type { DraftFile } from '../../domain/file';
 import type { ID } from '../../domain/id';
 import { validateLeague, type DraftOrder, type LeagueConfig } from '../../domain/league';
@@ -47,6 +47,7 @@ function Field({ label, htmlFor, problems, children }: { label: string; htmlFor:
 
 /** League setup: the league fields, the price import and the price table. */
 export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, onImport }: Props) {
+  const formId = useId();
   const existing = file?.league;
   const locked = (file?.picks.length ?? 0) > 0;
   const [name, setName] = useState(existing?.name ?? '');
@@ -100,6 +101,7 @@ export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, o
       )}
 
       <form
+        id={formId}
         onSubmit={(event) => {
           event.preventDefault();
           setAttempted(true);
@@ -146,44 +148,44 @@ export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, o
             <input id="league-budget" type="number" min={1} value={budget} onChange={(event) => setBudget(event.target.value)} />
           </Field>
         </section>
-
-        <PriceImport snapshot={data.snapshot} onImport={(imported) => setPrices((current) => ({ ...current, ...imported }))} />
-        <PriceTable
-          snapshot={data.snapshot}
-          prices={prices}
-          bans={bans}
-          onPrice={(id, price) =>
-            setPrices((current) => {
-              const next = { ...current };
-              if (price === null) delete next[id];
-              else next[id] = price;
-              return next;
-            })
-          }
-          onBan={(id, banned) => setBans((current) => (banned ? [...current.filter((b) => b !== id), id] : current.filter((b) => b !== id)))}
-        />
-
-        {other.length > 0 && (
-          <ul className="problems" aria-live="polite">
-            {other.map((p) => (
-              <li key={`${p.path}:${p.message}`}>{p.message}</li>
-            ))}
-          </ul>
-        )}
-        <div className="row actions">
-          <button type="submit">{existing ? 'Save' : 'Start draft'}</button>
-          {onCancel && (
-            <button type="button" onClick={onCancel}>
-              Back to the draft
-            </button>
-          )}
-          {onNewLeague && (
-            <button type="button" className="danger" onClick={onNewLeague}>
-              New league
-            </button>
-          )}
-        </div>
       </form>
+
+      <PriceImport snapshot={data.snapshot} onImport={(imported) => setPrices((current) => ({ ...current, ...imported }))} />
+      <PriceTable
+        snapshot={data.snapshot}
+        prices={prices}
+        bans={bans}
+        onPrice={(id, price) =>
+          setPrices((current) => {
+            const next = { ...current };
+            if (price === null) delete next[id];
+            else next[id] = price;
+            return next;
+          })
+        }
+        onBan={(id, banned) => setBans((current) => (banned ? [...current.filter((b) => b !== id), id] : current.filter((b) => b !== id)))}
+      />
+
+      <ul className="problems" aria-live="polite">
+        {other.map((p) => (
+          <li key={`${p.path}:${p.message}`}>{p.message}</li>
+        ))}
+      </ul>
+      <div className="row actions">
+        <button type="submit" form={formId}>
+          {existing ? 'Save' : 'Start draft'}
+        </button>
+        {onCancel && (
+          <button type="button" onClick={onCancel}>
+            Back to the draft
+          </button>
+        )}
+        {onNewLeague && (
+          <button type="button" className="danger" onClick={onNewLeague}>
+            New league
+          </button>
+        )}
+      </div>
     </main>
   );
 }

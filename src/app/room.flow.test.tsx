@@ -89,6 +89,29 @@ describe('recording picks', () => {
     expect(saved.get(STORAGE_KEY)).toBe(serializeDraftFile(file));
   });
 
+  it('is keyboard-operable: arrows move through the options, Enter picks the highlighted one, Escape clears the query', async () => {
+    const user = userEvent.setup();
+    const { storage, data: saved } = fakeStorage(stored(leagueFile()));
+    render(<App load={load} storage={storage} actions={fakeActions().actions} />);
+    await screen.findByText('Pick 1 of 6 · Round 1 · Ana is on the clock');
+
+    const input = screen.getByRole('combobox', { name: /^Pick for / });
+    // "a" matches at least Incineroar, Garchomp, Whimsicott, Rotom-Wash, Swampert-Mega and Venusaur.
+    await user.type(input, 'a');
+    const optionTexts = within(screen.getByRole('listbox')).getAllByRole('option').map((o) => o.textContent ?? '');
+    expect(optionTexts.length).toBeGreaterThanOrEqual(2);
+    const secondName = optionTexts[1].split(' — ')[0];
+
+    await user.keyboard('{ArrowDown}{Enter}');
+    expect(picksIn(saved)).toHaveLength(1);
+    expect(data.snapshot.species[picksIn(saved)[0]].name).toBe(secondName);
+
+    await user.type(input, 'a');
+    expect(input).toHaveProperty('value', 'a');
+    await user.keyboard('{Escape}');
+    expect(input).toHaveProperty('value', '');
+  });
+
   it('undoes the last pick', async () => {
     const user = userEvent.setup();
     const { storage, data: saved } = fakeStorage(stored(leagueFile(['incineroar', 'kingambit'])));

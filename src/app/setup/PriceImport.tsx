@@ -13,6 +13,7 @@ interface Props {
 export function PriceImport({ snapshot, onImport }: Props) {
   const [text, setText] = useState('');
   const [result, setResult] = useState<PriceImportResult | null>(null);
+  const [readError, setReadError] = useState(false);
 
   const run = (input: string) => {
     const parsed = parsePriceCsv(input, snapshot);
@@ -36,12 +37,27 @@ export function PriceImport({ snapshot, onImport }: Props) {
             accept=".csv,.tsv,.txt"
             onChange={async (event) => {
               const file = event.target.files?.[0];
-              if (file) run(await file.text());
               event.target.value = '';
+              if (!file) return;
+              let contents: string;
+              try {
+                contents = await file.text();
+              } catch {
+                setResult(null);
+                setReadError(true);
+                return;
+              }
+              setReadError(false);
+              run(contents);
             }}
           />
         </label>
       </div>
+      {readError && (
+        <div className="import-result" role="status">
+          <p>That file could not be read.</p>
+        </div>
+      )}
       {result && (
         <div className="import-result" role="status">
           <p>{Object.keys(result.prices).length} prices imported.</p>
