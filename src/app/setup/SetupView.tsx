@@ -118,7 +118,10 @@ export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, o
               rows={6}
               value={draftersText}
               disabled={locked}
-              onChange={(event) => setDraftersText(event.target.value)}
+              onChange={(event) => {
+                setDraftersText(event.target.value);
+                if (me >= lines(event.target.value).length) setMe(0);
+              }}
             />
           </Field>
           <Field label="Draft order" htmlFor="league-order" problems={problemsFor(shown, 'order')}>
@@ -161,7 +164,7 @@ export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, o
         />
 
         {other.length > 0 && (
-          <ul className="problems" role="alert">
+          <ul className="problems" aria-live="polite">
             {other.map((p) => (
               <li key={`${p.path}:${p.message}`}>{p.message}</li>
             ))}

@@ -74,7 +74,7 @@ export function DraftRoom({ data, file, names, errors, onPick, onUndo, onExport,
         </div>
       </header>
       {errors.length > 0 && (
-        <div className="refusal" role="alert">
+        <div className="refusal" aria-live="polite">
           {errors.map((p) => (
             <p key={`${p.path}:${p.message}`}>{p.message}</p>
           ))}
