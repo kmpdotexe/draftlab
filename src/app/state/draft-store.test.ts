@@ -113,3 +113,113 @@ describe('robustness', () => {
     expect(JSON.stringify({ start, league })).toBe(before);
   });
 });
+
+// Snake picks go Ana, Ben (you), Cy, Cy, Ben, Ana: in fileWith(['a', 'b', 'c']) your roster is ['b'].
+const mine = (extra: Partial<DraftFile> = {}): DraftStoreState => ({ file: { ...fileWith(['a', 'b', 'c']).file!, ...extra }, errors: [] });
+
+describe('sets', () => {
+  it('stores a set for a Pokémon on your roster', () => {
+    const set = { species: 'b', moves: ['m1'], nature: 'Jolly' as const };
+    const next = reduce(mine(), { type: 'set-set', species: 'b', set });
+    expect(next.errors).toEqual([]);
+    expect(next.file?.sets).toEqual({ b: set });
+  });
+
+  it('refuses a set for a Pokémon that is not yours, under the wrong key, or badly shaped', () => {
+    const start = mine();
+    const cases = [
+      { species: 'a', set: { species: 'a' }, message: 'a is not on your roster' },
+      { species: 'b', set: { species: 'c' }, message: 'this set is for c, not b' },
+      { species: 'b', set: { species: 'b', moves: ['m1', 'm1'] }, message: 'duplicate move "m1"' },
+    ];
+    for (const { species, set, message } of cases) {
+      const next = reduce(start, { type: 'set-set', species, set });
+      expect(next.file, message).toBe(start.file);
+      expect(next.errors.map((p) => p.message), message).toEqual([message]);
+    }
+    expect(reduce(empty, { type: 'set-set', species: 'b', set: { species: 'b' } }).errors[0].message).toBe('set up a league first');
+  });
+
+  it('clears a set, and does nothing for a Pokémon without one', () => {
+    const start = mine({ sets: { b: { species: 'b' } } });
+    expect(reduce(start, { type: 'clear-set', species: 'b' }).file?.sets).toEqual({});
+    const none = mine();
+    expect(reduce(none, { type: 'clear-set', species: 'b' }).file).toBe(none.file);
+  });
+});
+
+describe('teams', () => {
+  it('adds, renames and deletes teams', () => {
+    let state = reduce(mine(), { type: 'add-team', name: ' Rain ' });
+    state = reduce(state, { type: 'add-team', name: 'Sun' });
+    expect(state.file?.teams).toEqual([{ name: 'Rain', members: [] }, { name: 'Sun', members: [] }]);
+    state = reduce(state, { type: 'rename-team', index: 1, name: 'Trick Room' });
+    expect(state.file?.teams.map((t) => t.name)).toEqual(['Rain', 'Trick Room']);
+    state = reduce(state, { type: 'delete-team', index: 0 });
+    expect(state.file?.teams).toEqual([{ name: 'Trick Room', members: [] }]);
+  });
+
+  it('refuses an empty name and a team that does not exist', () => {
+    const start = mine({ teams: [{ name: 'T', members: [] }] });
+    expect(reduce(start, { type: 'add-team', name: '  ' }).errors).toEqual([{ path: 'teams', message: 'a team needs a name' }]);
+    expect(reduce(start, { type: 'rename-team', index: 0, name: '' }).errors).toEqual([{ path: 'teams[0].name', message: 'a team needs a name' }]);
+    for (const action of [
+      { type: 'rename-team' as const, index: 1, name: 'X' },
+      { type: 'set-team-members' as const, index: -1, members: [] },
+      { type: 'delete-team' as const, index: 1 },
+    ]) {
+      const next = reduce(start, action);
+      expect(next.file, action.type).toBe(start.file);
+      expect(next.errors[0].message, action.type).toBe('there is no such team');
+    }
+  });
+
+  it('sets members from your roster, refusing others, repeats and more than the team size', () => {
+    // A 3-round league so that your roster can hold two Pokémon: picks a (Ana), b (you), c, d (Cy), f (you).
+    const reduce3 = makeDraftReducer(snapshotOf(), 1);
+    const file: DraftFile = { schemaVersion: 2, league: leagueOf({ rounds: 3 }), picks: ['a', 'b', 'c', 'd', 'f'], sets: {}, teams: [{ name: 'T', members: [] }] };
+    const start: DraftStoreState = { file, errors: [] };
+    expect(reduce(start, { type: 'set-team-members', index: 0, members: ['f', 'b'] }).file?.teams[0].members).toEqual(['f', 'b']);
+    expect(reduce(start, { type: 'set-team-members', index: 0, members: ['b', 'a'] }).errors[0].message).toBe('a is not on your roster');
+    expect(reduce(start, { type: 'set-team-members', index: 0, members: ['b', 'b'] }).errors[0].message).toBe('b is listed twice');
+    expect(reduce3(start, { type: 'set-team-members', index: 0, members: ['b', 'f'] }).errors).toEqual([
+      { path: 'teams[0].members', message: 'a team has at most 1 Pokémon' },
+    ]);
+    expect(reduce3(start, { type: 'set-team-members', index: 0, members: ['f'] }).errors).toEqual([]);
+  });
+});
+
+describe('undo with sets and teams', () => {
+  it('removes your undone Pokémon from your sets and every team', () => {
+    // picks a (Ana), b (you): undoing b is undoing your pick.
+    const start: DraftStoreState = {
+      file: { ...fileWith(['a', 'b']).file!, sets: { b: { species: 'b' } }, teams: [{ name: 'T', members: ['b'] }, { name: 'U', members: [] }] },
+      errors: [],
+    };
+    const next = reduce(start, { type: 'undo' });
+    expect(next.file?.picks).toEqual(['a']);
+    expect(next.file?.sets).toEqual({});
+    expect(next.file?.teams).toEqual([{ name: 'T', members: [] }, { name: 'U', members: [] }]);
+    expect(next.file?.teams[1]).toBe(start.file?.teams[1]);
+  });
+
+  it("leaves sets and teams alone when undoing another drafter's pick", () => {
+    const start = mine({ sets: { b: { species: 'b' } }, teams: [{ name: 'T', members: ['b'] }] });
+    const next = reduce(start, { type: 'undo' });
+    expect(next.file?.picks).toEqual(['a', 'b']);
+    expect(next.file?.sets).toBe(start.file?.sets);
+    expect(next.file?.teams).toBe(start.file?.teams);
+  });
+
+  it('never modifies the state it is given', () => {
+    const start = mine({ sets: { b: { species: 'b' } }, teams: [{ name: 'T', members: ['b'] }] });
+    const before = JSON.stringify(start);
+    reduce(start, { type: 'set-set', species: 'b', set: { species: 'b', moves: ['m'] } });
+    reduce(start, { type: 'clear-set', species: 'b' });
+    reduce(start, { type: 'set-team-members', index: 0, members: [] });
+    reduce(start, { type: 'rename-team', index: 0, name: 'X' });
+    reduce(start, { type: 'delete-team', index: 0 });
+    reduce({ ...start, file: { ...start.file!, picks: ['a', 'b'] } }, { type: 'undo' });
+    expect(JSON.stringify(start)).toBe(before);
+  });
+});
