@@ -22,11 +22,10 @@ interface Props {
   onExport(): void;
   /** A draft file's text to import, or null when the chosen file could not be read. */
   onImport(text: string | null): void;
-  onSetup(): void;
 }
 
 /** The live draft: header, then record-a-pick and the log, suggestions for you, and every roster. */
-export function DraftRoom({ data, file, names, errors, onPick, onUndo, onExport, onImport, onSetup }: Props) {
+export function DraftRoom({ data, file, names, errors, onPick, onUndo, onExport, onImport }: Props) {
   const [filter, setFilter] = useState<UsageFilter>('all');
   const [limit, setLimit] = useState(20);
   const { league } = file;
@@ -59,9 +58,6 @@ export function DraftRoom({ data, file, names, errors, onPick, onUndo, onExport,
             Export
           </button>
           <FileButton label="Import" accept=".json,application/json" onText={(text) => onImport(text)} />
-          <button type="button" onClick={onSetup}>
-            Setup
-          </button>
         </div>
       </header>
       <div className={errors.length > 0 ? 'refusal' : undefined} aria-live="polite">
