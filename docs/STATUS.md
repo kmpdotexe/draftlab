@@ -1,12 +1,12 @@
 # Draft Lab: project status
 
-Last updated 2026-09-30. This file is a map for someone new to the repo: where the project stands, how it has been built, and what is deliberately unfinished. The README covers commands and data layout.
+Last updated 2026-10-03. This file is a map for someone new to the repo: where the project stands, how it has been built, and what is deliberately unfinished. The README covers commands and data layout.
 
 ## What it is
 
 A single-user web app for Pokémon VGC draft leagues. You describe your league (format, drafters, draft order, points budget), record the draft, build your roster with full sets, and get explained suggestions for who to draft next. It is aimed at people who do not know the less popular ladder picks. The current ladder is Pokémon Champions, Reg M-B.
 
-The UI so far is the draft room: league setup, a live draft with suggestions, autosaved in the browser. The teambuilder UI and hosting come next.
+The UI so far is the draft room (league setup, a live draft with suggestions) and the teambuilder (sets for your roster, Showdown paste import and export, match teams), autosaved in the browser. Hosting comes next.
 
 ## Where we are
 
@@ -22,10 +22,10 @@ Work so far happened between 2026-09-20 and 2026-09-30. Each increment went thro
 | 6 | Suggestion engine, stage 2: role and mechanics tags, ability immunities, rank-based combining | `specs/2026-09-21-suggestion-engine-stage2-design.md` (no separate plan document; see the note below) | done: built and reviewed |
 | 7 | Suggestion engine, stage 3: entered sets replace ladder guesses, and a partner-combo signal | `specs/2026-09-29-suggestion-engine-stage3-design.md`, `plans/2026-09-29-suggestion-engine-stage3.md` | done: built and reviewed |
 | 8 | App shell, increment 1: the draft room (league setup, CSV prices, live draft, suggestions as sentences, autosave, export and import) | `specs/2026-09-29-app-draft-room-design.md`, `plans/2026-09-29-app-draft-room.md` | done: built and reviewed |
-| 9 | App shell, increment 2: the teambuilder | not started | |
+| 9 | App shell, increment 2: the teambuilder (set editor, Showdown paste, match teams; your sets feed the suggestions) | `specs/2026-10-03-app-teambuilder-design.md`, `plans/2026-10-03-app-teambuilder.md` | done: built and reviewed |
 | 10 | App shell, increment 3: hosting and data refresh | not started | |
 
-Tests, all passing: 699 unit tests (including the UI flow tests, which run in jsdom) and 21 integration tests.
+Tests, all passing: 739 unit tests (including the UI flow tests, which run in jsdom) and 21 integration tests.
 
 ## Architecture
 
@@ -35,7 +35,7 @@ sync/            Node script. Reads the pokemon-showdown npm package (legal spec
 data/            The committed snapshot the app reads. The app never calls Smogon or Showdown at runtime.
 src/domain/      Pure logic: types, league and draft rules, sets, teams, saved file, paste import/export.
 src/engine/      Pure suggestion engine (increments 5-7). Imports only from src/domain.
-src/app/         React + Vite UI (increment 8): league setup, the draft room, sentences for the engine's reasons.
+src/app/         React + Vite UI (increments 8-9): league setup, the draft room, the teambuilder, sentences for the engine's reasons.
 ```
 
 Dependencies point one way (`app -> engine -> domain`, `sync -> domain`). Everything below the UI is pure functions: no throwing on bad input (they return problem lists or typed notes), no mutation of arguments, deterministic output. The engine never produces display text, only typed reasons the UI will phrase.

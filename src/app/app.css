@@ -304,3 +304,110 @@ td input[type='number'] {
   border: 1px solid var(--warn-line);
   border-radius: var(--radius);
 }
+
+/* View switcher (all views once a draft exists) */
+.view-nav {
+  display: flex;
+  gap: 0.25rem;
+  padding: 0.5rem calc(var(--space) * 1.5) 0;
+  background: var(--panel);
+}
+.view-nav button[aria-current='page'] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  font-weight: 600;
+  text-decoration: underline;
+}
+
+/* Teambuilder */
+.roster-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.roster-list button {
+  width: 100%;
+  margin-bottom: 0.25rem;
+  text-align: left;
+}
+.roster-list button[aria-current='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+.roster-list .types,
+.set-status {
+  color: var(--muted);
+  font-size: 0.9em;
+}
+.set-status {
+  display: block;
+}
+.tabs {
+  margin-bottom: var(--space);
+}
+.tabs button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 600;
+}
+.set-editor .field,
+.set-editor .picker {
+  margin-top: var(--space);
+}
+.picker {
+  position: relative;
+}
+.picker label,
+.set-editor .field label {
+  display: block;
+}
+.picker input,
+.set-editor select {
+  width: 100%;
+}
+.moves,
+.stat-points,
+.team fieldset {
+  margin: var(--space) 0 0;
+  padding: 0.5rem var(--space);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+.stat-row {
+  display: grid;
+  grid-template-columns: 6rem 5rem 4rem auto;
+  gap: 0.5rem;
+  align-items: center;
+  margin-top: 0.25rem;
+}
+.stat-value {
+  font-variant-numeric: tabular-nums;
+}
+.points-left {
+  margin: 0;
+  color: var(--muted);
+}
+.check {
+  display: block;
+}
+.team {
+  margin-top: var(--space);
+  padding-top: var(--space);
+  border-top: 1px solid var(--line);
+}
+.team-status {
+  margin: 0.5rem 0 0;
+  font-weight: 600;
+}
+.flash {
+  min-height: 1.2em;
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+}
+.paste-panel textarea {
+  width: 100%;
+}
+.paste-panel h3 {
+  margin-top: var(--space);
+}
