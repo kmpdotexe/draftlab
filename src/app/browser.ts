@@ -30,6 +30,7 @@ export const browserActions: BrowserActions = {
   },
 };
 
+/** A file name made from a league name: letters, digits and dashes only. */
 export function exportFileName(leagueName: string): string {
   return `${fileBase(leagueName)}.draftlab.json`;
 }
