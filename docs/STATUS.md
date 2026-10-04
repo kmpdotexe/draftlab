@@ -10,7 +10,7 @@ The UI so far is the draft room (league setup, a live draft with suggestions) an
 
 ## Where we are
 
-Work so far happened between 2026-09-20 and 2026-09-30. Each increment went through the same cycle (see "How it is built").
+Work so far happened between 2026-09-20 and 2026-10-03. Each increment went through the same cycle (see "How it is built").
 
 | # | Increment | Spec and plan (in `docs/superpowers/`) | State |
 |---|---|---|---|

@@ -61,7 +61,9 @@ export function StatPoints({ points, nature, stats, onChange }: Props) {
               }}
             />
             <span className="stat-value">{stats === null ? '' : `${stats[stat]}${arrow}`}</span>
-            {draft !== undefined && <span className="field-error">0 to {max}</span>}
+            {draft !== undefined && <span className="field-error">
+                0 to {max} (saved: {current[stat]})
+              </span>}
           </div>
         );
       })}

@@ -13,6 +13,11 @@ const teamSentences = (team: MatchTeam, sets: RosterSets, roster: string[] = tea
   validateTeam(team, roster, sets, snapshot, 6, 'teams[0]').problems.map((p) => teamProblemText(p, team, sets, snapshot));
 
 describe('setProblemText', () => {
+  it('words a stat point out of range', () => {
+    const points = { hp: 0, atk: 252, def: 0, spa: 0, spd: 0, spe: 0 };
+    expect(sentences({ species: 'garchomp', points })).toEqual(['Atk points must be 0 to 32 (found 252).']);
+  });
+
   it('names a wrong ability', () => {
     expect(sentences({ species: 'incineroar', ability: 'roughskin' })).toEqual(["Incineroar can't have the ability roughskin."]);
   });

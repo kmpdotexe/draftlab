@@ -118,7 +118,7 @@ describe('the set editor', () => {
 
     // The common spread uses all 66 points (Atk 0, Spe 3), so Atk can take nothing more.
     await setPoints(user, 'Atk points', '5');
-    expect(screen.getByText('0 to 0')).toBeTruthy();
+    expect(screen.getByText('0 to 0 (saved: 0)')).toBeTruthy();
     expect(savedFile(saved).sets.incineroar?.points).toEqual(common.points);
 
     await setPoints(user, 'Spe points', '0');
@@ -126,7 +126,9 @@ describe('the set editor', () => {
     await setPoints(user, 'Atk points', '3');
     expect(savedFile(saved).sets.incineroar?.points).toEqual({ ...common.points, spe: 0, atk: 3 });
     await setPoints(user, 'HP points', '40');
-    expect(screen.getByText('0 to 32')).toBeTruthy();
+    // Typing '40' commits '4' first (4 is allowed), then '40' is refused and stays in the box.
+    expect(screen.getByText('0 to 32 (saved: 4)')).toBeTruthy();
+    expect(savedFile(saved).sets.incineroar?.points?.hp).toBe(4);
   });
 
   it('shows problems in plain words, says when there is no ladder data, and clears a set after asking', async () => {

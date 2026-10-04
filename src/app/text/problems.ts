@@ -2,7 +2,8 @@ import { toID, type ID } from '../../domain/id';
 import type { Problem } from '../../domain/problem';
 import type { PokemonSet } from '../../domain/set';
 import type { MatchTeam, RosterSets } from '../../domain/team';
-import type { Snapshot } from '../../domain/types';
+import type { Snapshot, StatName } from '../../domain/types';
+import { STAT_LABELS } from '../team/options';
 
 export type ProblemSnapshot = Pick<Snapshot, 'species' | 'moves' | 'items'>;
 
@@ -42,6 +43,9 @@ export function setProblemText(problem: Problem, set: PokemonSet, snapshot: Prob
   }
   const total = /^total (\d+) is over the (\d+)-point limit$/.exec(message);
   if (path.endsWith('.points') && total) return `Stat points add up to ${total[1]}; the limit is ${total[2]}.`;
+  const range = /\.points\.(hp|atk|def|spa|spd|spe)$/.exec(path);
+  const bounds = /^\w+ must be a whole number from 0 to (\d+) \(found (.+)\)$/.exec(message);
+  if (range && bounds) return `${STAT_LABELS[range[1] as StatName]} points must be 0 to ${bounds[1]} (found ${bounds[2]}).`;
   return message;
 }
 

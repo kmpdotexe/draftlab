@@ -58,7 +58,7 @@ export function requiredItemOf(species: ID, snapshot: Pick<Snapshot, 'species'>)
   return entry !== null && entry.requiredItem ? toID(entry.requiredItem) : null;
 }
 
-/** Whether `species` may hold `item` under the item's holder restriction (the same rule as the set check). */
+/** Whether `species` may hold `item` under the item's holder restriction (the set check's holder rule, without the exemption for a form's own required stone: forms with a required item show it fixed, so the editor never offers a choice for them). */
 function canHold(item: ItemEntry, species: SpeciesEntry): boolean {
   if (!item.usableBy) return true;
   return item.usableBy.includes(species.id) || item.usableBy.includes(toID(species.baseSpecies));
