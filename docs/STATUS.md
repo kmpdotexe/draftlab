@@ -25,7 +25,7 @@ Work so far happened between 2026-09-20 and 2026-10-03. Each increment went thro
 | 9 | App shell, increment 2: the teambuilder (set editor, Showdown paste, match teams; your sets feed the suggestions) | `specs/2026-10-03-app-teambuilder-design.md`, `plans/2026-10-03-app-teambuilder.md` | done: built and reviewed |
 | 10 | App shell, increment 3: hosting and data refresh | not started | |
 
-Tests, all passing: 739 unit tests (including the UI flow tests, which run in jsdom) and 21 integration tests.
+Tests, all passing: 740 unit tests (including the UI flow tests, which run in jsdom) and 21 integration tests.
 
 ## Architecture
 
