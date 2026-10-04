@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ID } from '../../domain/id';
 import type { LegalSpeciesSource } from '../../domain/league';
 import { parsePriceCsv, type PriceImport as PriceImportResult } from '../../domain/prices';
+import { FileButton } from '../FileButton';
 
 interface Props {
   snapshot: LegalSpeciesSource;
@@ -30,28 +31,19 @@ export function PriceImport({ snapshot, onImport }: Props) {
         <button type="button" onClick={() => run(text)} disabled={text.trim() === ''}>
           Import
         </button>
-        <label className="file-button">
-          Upload a file
-          <input
-            type="file"
-            accept=".csv,.tsv,.txt"
-            onChange={async (event) => {
-              const file = event.target.files?.[0];
-              event.target.value = '';
-              if (!file) return;
-              let contents: string;
-              try {
-                contents = await file.text();
-              } catch {
-                setResult(null);
-                setReadError(true);
-                return;
-              }
-              setReadError(false);
-              run(contents);
-            }}
-          />
-        </label>
+        <FileButton
+          label="Upload a file"
+          accept=".csv,.tsv,.txt"
+          onText={(contents) => {
+            if (contents === null) {
+              setResult(null);
+              setReadError(true);
+              return;
+            }
+            setReadError(false);
+            run(contents);
+          }}
+        />
       </div>
       {readError && (
         <div className="import-result" role="status">

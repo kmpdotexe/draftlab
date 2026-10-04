@@ -4,6 +4,7 @@ import type { DraftFile } from '../../domain/file';
 import type { Problem } from '../../domain/problem';
 import { contextFor, suggest } from '../../engine';
 import type { AppData } from '../data/snapshot';
+import { FileButton } from '../FileButton';
 import type { Names } from '../text/names';
 import { PickEntry } from './PickEntry';
 import { PickLog } from './PickLog';
@@ -19,7 +20,8 @@ interface Props {
   onPick(species: string): void;
   onUndo(): void;
   onExport(): void;
-  onImport(file: File): void;
+  /** A draft file's text to import, or null when the chosen file could not be read. */
+  onImport(text: string | null): void;
   onSetup(): void;
 }
 
@@ -56,18 +58,7 @@ export function DraftRoom({ data, file, names, errors, onPick, onUndo, onExport,
           <button type="button" onClick={onExport}>
             Export
           </button>
-          <label className="file-button">
-            Import
-            <input
-              type="file"
-              accept=".json,application/json"
-              onChange={(event) => {
-                const chosen = event.target.files?.[0];
-                if (chosen) onImport(chosen);
-                event.target.value = '';
-              }}
-            />
-          </label>
+          <FileButton label="Import" accept=".json,application/json" onText={(text) => onImport(text)} />
           <button type="button" onClick={onSetup}>
             Setup
           </button>

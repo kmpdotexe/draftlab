@@ -39,10 +39,14 @@ export function fakeStorage(initial: Record<string, string> = {}, options: { fai
   return { storage, data };
 }
 
-/** Browser actions that record downloads and confirm questions; confirms answer from `answers` in order (default yes). */
-export function fakeActions(answers: boolean[] = []) {
+/**
+ * Browser actions that record downloads, confirm questions and copies. Confirms answer from `answers` in order
+ * (default yes); with `copyFails` every copy reports failure.
+ */
+export function fakeActions(answers: boolean[] = [], options: { copyFails?: boolean } = {}) {
   const downloads: Array<{ filename: string; text: string }> = [];
   const questions: string[] = [];
+  const copies: string[] = [];
   const actions: BrowserActions = {
     download: (filename, text) => {
       downloads.push({ filename, text });
@@ -51,6 +55,11 @@ export function fakeActions(answers: boolean[] = []) {
       questions.push(message);
       return answers.length > 0 ? (answers.shift() as boolean) : true;
     },
+    copy: async (text) => {
+      if (options.copyFails) return false;
+      copies.push(text);
+      return true;
+    },
   };
-  return { actions, downloads, questions };
+  return { actions, downloads, questions, copies };
 }

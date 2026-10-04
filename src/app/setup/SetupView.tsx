@@ -4,6 +4,7 @@ import type { ID } from '../../domain/id';
 import { validateLeague, type DraftOrder, type LeagueConfig } from '../../domain/league';
 import type { Problem } from '../../domain/problem';
 import type { AppData } from '../data/snapshot';
+import { FileButton } from '../FileButton';
 import { PriceImport } from './PriceImport';
 import { PriceTable } from './PriceTable';
 
@@ -17,8 +18,8 @@ interface Props {
   onCancel?(): void;
   /** Start over with a new league (only when a draft exists). */
   onNewLeague?(): void;
-  /** Import a saved draft file (only when there is no draft yet). */
-  onImport?(file: File): void;
+  /** Import a saved draft file's text, or null when it could not be read (only when there is no draft yet). */
+  onImport?(text: string | null): void;
 }
 
 const lines = (text: string): string[] =>
@@ -85,18 +86,7 @@ export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, o
       {onImport && (
         <section aria-labelledby="import-title">
           <h2 id="import-title">Have a saved draft?</h2>
-          <label className="file-button">
-            Import a draft file
-            <input
-              type="file"
-              accept=".json,application/json"
-              onChange={(event) => {
-                const chosen = event.target.files?.[0];
-                if (chosen) onImport(chosen);
-                event.target.value = '';
-              }}
-            />
-          </label>
+          <FileButton label="Import a draft file" accept=".json,application/json" onText={(text) => onImport(text)} />
         </section>
       )}
 

@@ -55,11 +55,8 @@ export function Workspace({ data, storage, actions }: Props) {
     }
   };
 
-  const importFile = async (chosen: File) => {
-    let text: string;
-    try {
-      text = await chosen.text();
-    } catch {
+  const importFile = (text: string | null) => {
+    if (text === null) {
       setImportErrors([{ path: 'file', message: 'the file could not be read' }]);
       return;
     }
