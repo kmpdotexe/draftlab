@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { DraftFile } from '../../domain/file';
 import type { ID } from '../../domain/id';
 import { exportTeam } from '../../domain/paste-export';
@@ -37,6 +37,9 @@ interface TeamProps extends Omit<Props, 'file'> {
 
 function TeamCard({ file, team, index, roster, snapshot, names, teamSize, base, dispatch, actions }: TeamProps) {
   const [name, setName] = useState(team.name);
+  useEffect(() => {
+    setName((typed) => (typed.trim() === team.name ? typed : team.name));
+  }, [team.name]);
   const [flash, setFlash] = useFlash();
   const check = validateTeam(team, [...roster], file.sets, snapshot, teamSize, `teams[${index}]`);
   const full = team.members.length >= teamSize;
@@ -114,7 +117,7 @@ export function MatchTeams(props: Props) {
       </button>
       {file.teams.length === 0 && <p>No teams yet.</p>}
       {file.teams.map((team, index) => (
-        <TeamCard key={`${index}:${file.teams.length}`} {...props} team={team} index={index} />
+        <TeamCard key={index} {...props} team={team} index={index} />
       ))}
     </section>
   );

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { NATURES, type NatureName } from '../../domain/natures';
 import { MAX_STAT_POINT, MAX_TOTAL_STAT_POINTS, STAT_NAMES, type StatPoints as Points } from '../../domain/set';
 import type { Stats } from '../../domain/stats';
@@ -22,6 +22,8 @@ const ZERO: Points = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
  */
 export function StatPoints({ points, nature, stats, onChange }: Props) {
   const [drafts, setDrafts] = useState<Partial<Record<StatName, string>>>({});
+  // A rejected entry is only kept until the saved points change (another stat, the common set, a paste).
+  useEffect(() => setDrafts({}), [points]);
   const current = points ?? ZERO;
   const total = STAT_NAMES.reduce((sum, stat) => sum + current[stat], 0);
   const left = Math.max(MAX_TOTAL_STAT_POINTS - total, 0);

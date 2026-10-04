@@ -20,7 +20,7 @@ const optionText = (option: Option): string => (option.share === null ? option.n
 
 /**
  * A combobox over a fixed list of options (an item, a move): type to filter by name, arrows to move, Enter or a
- * click to choose, Escape to stop. The none choice comes last in the list.
+ * click to choose, Escape to stop. The none choice comes last, and only while the box is empty, so Enter on text that matches nothing changes nothing.
  */
 export function OptionPicker({ label, options, value, valueName, noneLabel, onChange }: Props) {
   const listId = useId();
@@ -33,7 +33,7 @@ export function OptionPicker({ label, options, value, valueName, noneLabel, onCh
       ? []
       : [
           ...options.filter((option) => option.name.toLowerCase().includes(needle)).slice(0, MAX_OPTIONS),
-          { id: '', name: noneLabel, share: null },
+          ...(needle === '' ? [{ id: '', name: noneLabel, share: null }] : []),
         ];
   const current = Math.min(active, Math.max(shown.length - 1, 0));
 
@@ -63,6 +63,9 @@ export function OptionPicker({ label, options, value, valueName, noneLabel, onCh
           setActive(0);
         }}
         onBlur={() => setQuery(null)}
+        onClick={() => {
+          if (query === null) setQuery('');
+        }}
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown') {
             event.preventDefault();
@@ -79,6 +82,7 @@ export function OptionPicker({ label, options, value, valueName, noneLabel, onCh
           }
         }}
       />
+      {query !== null && needle !== '' && shown.length === 0 && <p className="note">No match for "{query}".</p>}
       {shown.length > 0 && (
         <ul id={listId} role="listbox" className="options">
           {shown.map((option, index) => (
