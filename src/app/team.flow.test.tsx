@@ -290,4 +290,29 @@ describe('with the draft', () => {
     await openTeambuilder(leagueFile(0));
     expect(screen.getByText('Your roster is empty: draft a Pokémon first.')).toBeTruthy();
   });
+
+  it('switches views, marks the current one, and drops a refusal when you switch', async () => {
+    const user = userEvent.setup();
+    const empty = fakeStorage();
+    render(<App load={load} storage={empty.storage} actions={fakeActions().actions} />);
+    await screen.findByRole('heading', { name: 'Set up your league' });
+    expect(screen.queryByRole('navigation', { name: 'Views' })).toBeNull();
+    cleanup();
+
+    const { storage } = fakeStorage(stored(leagueFile(4)));
+    render(<App load={load} storage={storage} actions={fakeActions().actions} />);
+    expect((await screen.findByRole('button', { name: 'Draft room' })).getAttribute('aria-current')).toBe('page');
+    await user.click(screen.getByRole('button', { name: 'Setup' }));
+    expect(screen.getByRole('button', { name: 'Setup' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.getByRole('button', { name: 'Draft room' }).getAttribute('aria-current')).toBeNull();
+
+    // Banning a drafted Pokémon is refused; switching view drops the refusal.
+    await user.type(screen.getByLabelText('Search'), 'Garchomp');
+    await user.click(screen.getByLabelText('Ban Garchomp'));
+    await user.click(screen.getByRole('button', { name: 'Save' }));
+    expect(screen.getByText('this would break pick 1: "garchomp" is banned in this league')).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Teambuilder' }));
+    expect(screen.getByRole('button', { name: 'Teambuilder' }).getAttribute('aria-current')).toBe('page');
+    expect(screen.queryByText(/this would break pick 1/)).toBeNull();
+  });
 });
