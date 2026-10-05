@@ -8,6 +8,8 @@ export interface AppProps {
   load?: () => Promise<AppData>;
   storage?: DraftStorage;
   actions?: BrowserActions;
+  /** The current time (tests pass a fixed one). */
+  now?: () => Date;
 }
 
 type Phase = { kind: 'loading' } | { kind: 'error'; message: string } | { kind: 'ready'; data: AppData };
@@ -52,7 +54,7 @@ class ErrorBoundary extends Component<{ storage: DraftStorage; actions: BrowserA
 }
 
 /** Loads the data, then hands over to the workspace; loading and load errors get their own screens. */
-export function App({ load = loadAppData, storage, actions = browserActions }: AppProps) {
+export function App({ load = loadAppData, storage, actions = browserActions, now = () => new Date() }: AppProps) {
   const [store] = useState<DraftStorage>(() => storage ?? browserStorage());
   const [phase, setPhase] = useState<Phase>({ kind: 'loading' });
 
@@ -80,7 +82,7 @@ export function App({ load = loadAppData, storage, actions = browserActions }: A
   }
   return (
     <ErrorBoundary storage={store} actions={actions}>
-      <Workspace data={phase.data} storage={store} actions={actions} />
+      <Workspace data={phase.data} storage={store} actions={actions} now={now} />
     </ErrorBoundary>
   );
 }

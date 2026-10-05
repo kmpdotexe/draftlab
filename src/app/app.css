@@ -411,3 +411,17 @@ td input[type='number'] {
 .paste-panel h3 {
   margin-top: var(--space);
 }
+
+/* The data line under every view */
+.data-footer {
+  padding: var(--space) calc(var(--space) * 1.5);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9em;
+}
+.data-footer p {
+  margin: 0;
+}
+.data-footer ul {
+  margin: 0.25rem 0 0;
+}

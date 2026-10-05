@@ -5,11 +5,13 @@ import type { LeagueConfig } from '../domain/league';
 import type { Problem } from '../domain/problem';
 import { exportFileName, type BrowserActions } from './browser';
 import type { AppData } from './data/snapshot';
+import { DataFooter } from './DataFooter';
 import { SetupView } from './setup/SetupView';
 import { makeDraftReducer, type DraftAction, type DraftStoreState } from './state/draft-store';
 import { loadDraft, saveDraft, type DraftStorage } from './state/storage';
 import { DraftRoom } from './room/DraftRoom';
 import { TeambuilderView } from './team/TeambuilderView';
+import { dataBanners, type DataBanner } from './text/data-age';
 import { makeNames } from './text/names';
 
 type View = 'room' | 'team' | 'setup';
@@ -24,6 +26,8 @@ interface Props {
   data: AppData;
   storage: DraftStorage;
   actions: BrowserActions;
+  /** The current time, for the stale-data banner. */
+  now: () => Date;
 }
 
 function ProblemList({ problems }: { problems: readonly Problem[] }) {
@@ -39,7 +43,7 @@ function ProblemList({ problems }: { problems: readonly Problem[] }) {
 }
 
 /** Owns the one draft file: loads it, applies actions, saves after each change, and picks the view. */
-export function Workspace({ data, storage, actions }: Props) {
+export function Workspace({ data, storage, actions, now }: Props) {
   const reducer = useMemo(() => makeDraftReducer(data.snapshot, data.meta.showdown.rules.minTeamSize), [data]);
   const names = useMemo(() => makeNames(data.snapshot), [data.snapshot]);
   const [initial] = useState(() => loadDraft(storage, data.snapshot));
@@ -50,6 +54,7 @@ export function Workspace({ data, storage, actions }: Props) {
   const [saveFailed, setSaveFailed] = useState(initial.kind === 'unavailable');
   const [importErrors, setImportErrors] = useState<Problem[]>([]);
   const [view, setView] = useState<View>(state.file === null ? 'setup' : 'room');
+  const [banners, setBanners] = useState<DataBanner[]>(() => dataBanners(data.meta, now()));
 
   const apply = (action: DraftAction): DraftStoreState => {
     const next = reducer(stateRef.current, action);
@@ -156,6 +161,14 @@ export function Workspace({ data, storage, actions }: Props) {
           Changes aren't being saved in this browser — use Export.
         </div>
       )}
+      {banners.map((banner) => (
+        <div key={banner.id} className="banner warning">
+          <p>{banner.text}</p>
+          <button type="button" onClick={() => setBanners((shown) => shown.filter((b) => b.id !== banner.id))}>
+            Dismiss
+          </button>
+        </div>
+      ))}
       {warnings.length > 0 && (
         <div className="banner" role="status">
           <ProblemList problems={warnings} />
@@ -210,6 +223,7 @@ export function Workspace({ data, storage, actions }: Props) {
           onImport={importFile}
         />
       )}
+      <DataFooter meta={data.meta} />
     </>
   );
 }
