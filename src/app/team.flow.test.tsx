@@ -107,24 +107,32 @@ describe('the set editor', () => {
     expect(options[options.length - 1].textContent).toBe('No move');
   });
 
-  it('starts from the common set, and does not save points over 32 or past the 66 total', async () => {
+  it('starts from the common set', async () => {
     const { user, saved } = await openTeambuilder(leagueFile());
     await user.click(screen.getByRole('button', { name: /^Incineroar/ }));
     await user.click(screen.getByRole('button', { name: 'Start from the common set' }));
+    // The common set changes with each month's ladder data, so the expectations come from the same data.
     const common = commonSet('incineroar', data.snapshot)!;
     expect(savedFile(saved).sets.incineroar).toEqual(common);
-    expect((screen.getByRole('combobox', { name: 'Move 1' }) as HTMLInputElement).value).toBe('Fake Out');
+    const firstMove = data.snapshot.moves[common.moves![0]].name;
+    expect((screen.getByRole('combobox', { name: 'Move 1' }) as HTMLInputElement).value).toBe(firstMove);
     expect(screen.queryByRole('button', { name: 'Start from the common set' })).toBeNull();
+  });
 
-    // The common spread uses all 66 points (Atk 0, Spe 3), so Atk can take nothing more.
+  it('does not save points over 32 or past the 66 total', async () => {
+    // A fixed spread using all 66 points (Atk 0, Spe 3), independent of the month's ladder data.
+    const points = { hp: 32, atk: 0, def: 21, spa: 0, spd: 10, spe: 3 };
+    const { user, saved } = await openTeambuilder(leagueFile(undefined, { sets: { incineroar: { species: 'incineroar', points } } }));
+    await user.click(screen.getByRole('button', { name: /^Incineroar/ }));
+
     await setPoints(user, 'Atk points', '5');
     expect(screen.getByText('0 to 0 (saved: 0)')).toBeTruthy();
-    expect(savedFile(saved).sets.incineroar?.points).toEqual(common.points);
+    expect(savedFile(saved).sets.incineroar?.points).toEqual(points);
 
     await setPoints(user, 'Spe points', '0');
     expect(screen.getByText('3 of 66 points left')).toBeTruthy();
     await setPoints(user, 'Atk points', '3');
-    expect(savedFile(saved).sets.incineroar?.points).toEqual({ ...common.points, spe: 0, atk: 3 });
+    expect(savedFile(saved).sets.incineroar?.points).toEqual({ ...points, spe: 0, atk: 3 });
     await setPoints(user, 'HP points', '40');
     // Typing '40' commits '4' first (4 is allowed), then '40' is refused and stays in the box.
     expect(screen.getByText('0 to 32 (saved: 4)')).toBeTruthy();

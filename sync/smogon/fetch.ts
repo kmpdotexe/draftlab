@@ -44,8 +44,9 @@ async function getText(fetcher: Fetcher, url: string): Promise<string> {
 }
 
 /**
- * Finds the newest stats month that has `<statsFormatId>-<cutoff>.json.gz` under `chaos/`
- * and returns its decompressed text, or null if none of the last `maxMonthsBack` months has it.
+ * Finds the newest stats month that has `<statsFormatId>-<cutoff>.json.gz` or `<statsFormatId>-<cutoff>.json`
+ * under `chaos/` (Smogon's listings switched from the first to the second in 2026) and returns its text,
+ * decompressed when it is the `.gz`, or null if none of the last `maxMonthsBack` months has either.
  */
 export async function fetchLatestChaos(
   statsFormatId: string,
@@ -61,16 +62,21 @@ export async function fetchLatestChaos(
     throw new Error(`Smogon stats: ${indexUrl} lists no YYYY-MM/ months; the page format may have changed`);
   }
   const months = allMonths.reverse().slice(0, maxMonthsBack);
-  const file = `${statsFormatId}-${cutoff}.json.gz`;
+  const gzipped = `${statsFormatId}-${cutoff}.json.gz`;
+  const plain = `${statsFormatId}-${cutoff}.json`;
 
   for (const month of months) {
     const listing = await getTextIfPresent(fetcher, `${STATS_ROOT}/${month}/chaos/`);
-    if (listing === null || !parseIndex(listing).includes(file)) continue;
+    if (listing === null) continue;
+    const listed = parseIndex(listing);
+    const file = listed.includes(gzipped) ? gzipped : listed.includes(plain) ? plain : null;
+    if (file === null) continue;
 
     const url = `${STATS_ROOT}/${month}/chaos/${file}`;
     const response = await fetcher(url);
     if (!response.ok) throw new Error(`Smogon stats: ${url} returned HTTP ${response.status}`);
-    const text = gunzipSync(Buffer.from(await response.arrayBuffer())).toString('utf8');
+    const bytes = Buffer.from(await response.arrayBuffer());
+    const text = (file === gzipped ? gunzipSync(bytes) : bytes).toString('utf8');
     return { statsFormatId, cutoff, month, url, text };
   }
   return null;

@@ -50,6 +50,9 @@ const topSix: ID[] = [];
   }
 }
 
+/** How many candidates the budget rules out, per roster: summed below, so the affordability check is never vacuous. */
+const excludedByBudget: number[] = [];
+
 const isRankedBefore = (a: Suggestion, b: Suggestion) =>
   a.score > b.score || (a.score === b.score && (a.price < b.price || (a.price === b.price && a.species < b.species)));
 
@@ -64,10 +67,10 @@ describe.each([
   const candidateIds = ctx.pool.filter((id) => !sharesDexNumber(roster, id));
   const expectedIds = candidateIds.filter((id) => affordable(ctx, id));
   const lacked = rosterLacks(roster, snapshot);
+  excludedByBudget.push(candidateIds.length - expectedIds.length);
 
   it('returns exactly the affordable candidates, with no note but roster-lacks-roles', () => {
     expect(expectedIds.length).toBeGreaterThanOrEqual(300);
-    expect(candidateIds.length - expectedIds.length).toBeGreaterThanOrEqual(1); // the budget really excludes someone
     expect(result.notes).toEqual(lacked.length > 0 ? [{ kind: 'roster-lacks-roles', roles: lacked }] : []);
     expect(result.considered).toBe(expectedIds.length);
     expect(result.suggestions.map((s) => s.species).sort()).toEqual([...expectedIds].sort());
@@ -126,6 +129,12 @@ describe.each([
     expect(withLift.length, roster.join('+')).toBeGreaterThanOrEqual(15); // 20, 19 and 20 when this was written
     expect(noLift.length, roster.join('+')).toBeLessThanOrEqual(5); // 0, 1 and 0 when this was written
   });
+});
+
+// Which roster the budget bites on depends on the month's usage-based prices, so the check is across the three.
+it('rules out at least one candidate on budget for at least one of the three rosters', () => {
+  expect(excludedByBudget).toHaveLength(3);
+  expect(excludedByBudget.reduce((sum, n) => sum + n, 0)).toBeGreaterThanOrEqual(1);
 });
 
 describe('suggestions on the real snapshot: filters, dex numbers, notes and determinism', () => {

@@ -53,6 +53,33 @@ describe('fetchLatestChaos', () => {
     });
   });
 
+  it('takes a plain .json file when the listing has that instead of .json.gz (Smogon listings since 2026-09)', async () => {
+    const plain = 'gen9championsvgc2026regmb-1630.json';
+    const fetcher = fakeFetcher({
+      [`${ROOT}/`]: { body: indexHtml(['2026-08/', '2026-09/']) },
+      [`${ROOT}/2026-09/chaos/`]: { body: indexHtml(['gen9championsvgc2026regmb-1500.json', plain]) },
+      [`${ROOT}/2026-09/chaos/${plain}`]: { body: PAYLOAD },
+    });
+    const result = await fetchLatestChaos('gen9championsvgc2026regmb', 1630, fetcher);
+    expect(result).toEqual({
+      statsFormatId: 'gen9championsvgc2026regmb',
+      cutoff: 1630,
+      month: '2026-09',
+      url: `${ROOT}/2026-09/chaos/${plain}`,
+      text: PAYLOAD,
+    });
+  });
+
+  it('does not take a file for another cutoff or format when looking for the plain .json', async () => {
+    const fetcher = fakeFetcher({
+      [`${ROOT}/`]: { body: indexHtml(['2026-09/']) },
+      [`${ROOT}/2026-09/chaos/`]: {
+        body: indexHtml(['gen9championsvgc2026regmb-1500.json', 'gen9championsvgc2026regmbbo3-1630.json']),
+      },
+    });
+    expect(await fetchLatestChaos('gen9championsvgc2026regmb', 1630, fetcher)).toBeNull();
+  });
+
   it('returns null when no recent month has the file', async () => {
     const fetcher = fakeFetcher({
       [`${ROOT}/`]: { body: indexHtml(['2026-08/']) },
