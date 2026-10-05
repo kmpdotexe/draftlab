@@ -3,7 +3,7 @@ import type { ID } from '../../domain/id';
 import type { SpeciesEntry } from '../../domain/types';
 import { OptionPicker } from '../team/OptionPicker';
 import type { Option } from '../team/options';
-import { nextTierPoints, tiersOf, unpricedOf, type Tier } from './tiers';
+import { nextTierPoints, parseWholePoints, speciesOptions, tiersOf, unpricedOf, type Tier } from './tiers';
 
 type SpeciesTable = Readonly<Record<ID, SpeciesEntry>>;
 
@@ -22,17 +22,17 @@ interface Props {
 
 const POINTS_HINT = 'Whole points, 0 or more';
 
-const parsePoints = (text: string): number | null => (/^\s*\d+\s*$/.test(text) ? Number(text) : null);
 const pokemon = (n: number) => `${n} Pokémon`;
 
 interface CardProps {
   tier: Tier;
   props: Props;
   options: readonly Option[];
+  taken: readonly number[];
   note(text: string): void;
 }
 
-function TierCard({ tier, props, options, note }: CardProps) {
+function TierCard({ tier, props, options, taken, note }: CardProps) {
   const { species, prices, bans, draftedBy, emptyTiers, onEmptyTiers, onPrices, confirm } = props;
   const [draft, setDraft] = useState<string | null>(null);
   const title = `${tier.points}-point tier`;
@@ -40,12 +40,12 @@ function TierCard({ tier, props, options, note }: CardProps) {
 
   const commitPoints = () => {
     if (draft === null) return;
-    const points = parsePoints(draft);
+    const points = parseWholePoints(draft);
     if (points === null) return;
     setDraft(null);
     if (points === tier.points) return;
-    const merging = Object.values(prices).includes(points) || emptyTiers.includes(points);
-    const rest = emptyTiers.filter((p) => p !== tier.points);
+    const merging = taken.includes(points);
+    const rest = emptyTiers.filter((p) => p !== tier.points && !(merging && p === points));
     onEmptyTiers(tier.members.length === 0 && !merging ? [...rest, points] : rest);
     if (tier.members.length > 0) {
       const next = { ...prices };
@@ -96,7 +96,7 @@ function TierCard({ tier, props, options, note }: CardProps) {
             }}
           />
         </label>
-        {draft !== null && parsePoints(draft) === null && <span className="field-error">{POINTS_HINT}</span>}
+        <span className="field-error" aria-live="polite">{draft !== null && parseWholePoints(draft) === null ? POINTS_HINT : ''}</span>
         <button type="button" className="danger" onClick={remove}>
           Remove tier
         </button>
@@ -135,13 +135,7 @@ export const TierBoard = memo(function TierBoard(props: Props) {
   const [message, setMessage] = useState('');
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
-  const options = useMemo<Option[]>(
-    () =>
-      Object.values(species)
-        .map((entry) => ({ id: entry.id, name: entry.name, share: null }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [species],
-  );
+  const options = useMemo<Option[]>(() => speciesOptions(species), [species]);
   const priced = tiersOf(prices, species);
   const tiers: Tier[] = [...priced, ...emptyTiers.filter((p) => !priced.some((t) => t.points === p)).map((points) => ({ points, members: [] }))].sort(
     (a, b) => b.points - a.points,
@@ -157,7 +151,7 @@ export const TierBoard = memo(function TierBoard(props: Props) {
         {message}
       </p>
       {tiers.map((tier) => (
-        <TierCard key={tier.points} tier={tier} props={props} options={options} note={setMessage} />
+        <TierCard key={tier.points} tier={tier} props={props} options={options} taken={tiers.map((t) => t.points)} note={setMessage} />
       ))}
       <button type="button" onClick={() => onEmptyTiers([...emptyTiers, nextTierPoints(tiers.map((t) => t.points))])}>
         Add tier
@@ -178,6 +172,7 @@ export const TierBoard = memo(function TierBoard(props: Props) {
                   aria-label={`Add ${species[id].name} to a tier`}
                   value=""
                   onChange={(event) => {
+                    if (event.target.value === '') return;
                     const points = Number(event.target.value);
                     onPrices({ ...prices, [id]: points });
                     onEmptyTiers(emptyTiers.filter((p) => p !== points));

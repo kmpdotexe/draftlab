@@ -48,3 +48,16 @@ export function templateCsv(species: SpeciesTable): string {
     .sort((a, b) => a.localeCompare(b));
   return ['Pokemon,Points', ...names.map((name) => `${name},`)].join('\n') + '\n';
 }
+
+/** A whole number of points (0 or more) from a text box, or null. */
+export function parseWholePoints(text: string): number | null {
+  return /^\s*\d+\s*$/.test(text) ? Number(text) : null;
+}
+
+/** Picker options for the legal Pokémon not in `excluded`, by display name. */
+export function speciesOptions(species: Readonly<Record<ID, Pick<SpeciesEntry, 'id' | 'name'>>>, excluded: (id: ID) => boolean = () => false) {
+  return Object.values(species)
+    .filter((entry) => !excluded(entry.id))
+    .map((entry) => ({ id: entry.id, name: entry.name, share: null }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}

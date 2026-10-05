@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import type { ID } from '../../domain/id';
 import type { SpeciesEntry } from '../../domain/types';
 import { OptionPicker } from '../team/OptionPicker';
+import { speciesOptions } from './tiers';
 
 interface Props {
   species: Readonly<Record<ID, SpeciesEntry>>;
@@ -11,14 +12,7 @@ interface Props {
 
 /** The league's extra bans: search to add, × to remove. */
 export function BanList({ species, bans, onBans }: Props) {
-  const options = useMemo(
-    () =>
-      Object.values(species)
-        .filter((entry) => !bans.includes(entry.id))
-        .map((entry) => ({ id: entry.id, name: entry.name, share: null }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
-    [species, bans],
-  );
+  const options = useMemo(() => speciesOptions(species, (id) => bans.includes(id)), [species, bans]);
   const nameOf = (id: ID) => (Object.hasOwn(species, id) ? species[id].name : id);
 
   return (

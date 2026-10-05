@@ -6,10 +6,12 @@ interface Props {
   panel: PricePanel;
   onPanel(panel: PricePanel): void;
   onBuild(): void;
+  /** False when the snapshot has no ladder usage. */
+  canSuggest: boolean;
 }
 
 /** The ways to set prices: paste a list, start from suggested prices, or build tiers by hand. */
-export function PriceStart({ first, panel, onPanel, onBuild }: Props) {
+export function PriceStart({ first, panel, onPanel, onBuild, canSuggest }: Props) {
   const toggle = (which: Exclude<PricePanel, null>) => onPanel(panel === which ? null : which);
   return (
     <section className={first ? 'price-start' : 'price-start compact'} aria-labelledby="price-start-title">
@@ -19,7 +21,7 @@ export function PriceStart({ first, panel, onPanel, onBuild }: Props) {
         <button type="button" aria-pressed={panel === 'paste'} onClick={() => toggle('paste')}>
           Paste or upload a price list
         </button>
-        <button type="button" aria-pressed={panel === 'suggest'} onClick={() => toggle('suggest')}>
+        <button type="button" aria-pressed={panel === 'suggest'} disabled={!canSuggest} onClick={() => toggle('suggest')}>
           Start from suggested prices
         </button>
         {first && (
@@ -28,6 +30,7 @@ export function PriceStart({ first, panel, onPanel, onBuild }: Props) {
           </button>
         )}
       </div>
+      {!canSuggest && <p className="note">No ladder data to suggest from.</p>}
     </section>
   );
 }

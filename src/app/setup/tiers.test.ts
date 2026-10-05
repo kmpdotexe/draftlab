@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { realData } from '../test-support';
-import { nextTierPoints, templateCsv, tiersOf, unpricedOf } from './tiers';
+import { nextTierPoints, parseWholePoints, speciesOptions, templateCsv, tiersOf, unpricedOf } from './tiers';
 
 const species = {
   a: { name: 'Alpha' },
@@ -40,5 +40,23 @@ describe('templateCsv', () => {
     const real = templateCsv(realData().snapshot.species).trimEnd().split('\n');
     expect(real).toHaveLength(Object.keys(realData().snapshot.species).length + 1);
     expect(real).toContain('Garchomp,');
+  });
+});
+
+describe('parseWholePoints and speciesOptions', () => {
+  it('parses whole points and lists options', () => {
+    expect(parseWholePoints('12')).toBe(12);
+    expect(parseWholePoints(' 0 ')).toBe(0);
+    expect(parseWholePoints('-3')).toBeNull();
+    expect(parseWholePoints('2.5')).toBeNull();
+    expect(parseWholePoints('')).toBeNull();
+
+    const speciesWithIds = {
+      a: { id: 'a' as const, name: 'Alpha' },
+      b: { id: 'b' as const, name: 'Bravo' },
+      c: { id: 'c' as const, name: 'Charlie' },
+      d: { id: 'd' as const, name: 'Delta' },
+    };
+    expect(speciesOptions(speciesWithIds, (id) => id === 'b').map((o) => o.id)).toEqual(['a', 'c', 'd']);
   });
 });

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { ID } from '../../domain/id';
 import type { Snapshot } from '../../domain/types';
 import { DEFAULT_SUGGESTION, suggestedPrices, suggestionSummary, type PriceSuggestion } from './suggest-prices';
+import { parseWholePoints } from './tiers';
 
 interface Props {
   snapshot: Pick<Snapshot, 'species' | 'usage'>;
@@ -10,8 +11,6 @@ interface Props {
   confirm(message: string): boolean;
   onApply(prices: Record<ID, number>): void;
 }
-
-const whole = (text: string): number | null => (/^\s*\d+\s*$/.test(text) ? Number(text) : null);
 
 /** A starting price list from ladder usage: editable tier sizes and points, a preview, then Apply. */
 export function SuggestPrices({ snapshot, hasPrices, confirm, onApply }: Props) {
@@ -28,8 +27,8 @@ export function SuggestPrices({ snapshot, hasPrices, confirm, onApply }: Props) 
     );
   }
 
-  const tiers = rows.map((row) => ({ count: whole(row.count), points: whole(row.points) }));
-  const restPoints = leaveOut ? null : whole(rest);
+  const tiers = rows.map((row) => ({ count: parseWholePoints(row.count), points: parseWholePoints(row.points) }));
+  const restPoints = leaveOut ? null : parseWholePoints(rest);
   const valid = tiers.every((tier) => tier.count !== null && tier.points !== null) && (leaveOut || restPoints !== null);
   const suggestion: PriceSuggestion | null = valid
     ? { tiers: tiers.map((tier) => ({ count: tier.count!, points: tier.points! })), restPoints }
