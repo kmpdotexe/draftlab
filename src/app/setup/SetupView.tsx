@@ -12,7 +12,7 @@ import { PriceImport } from './PriceImport';
 import { PriceStart, type PricePanel } from './PriceStart';
 import { SuggestPrices } from './SuggestPrices';
 import { TierBoard } from './TierBoard';
-import { templateCsv } from './tiers';
+import { templateCsv, tiersOf } from './tiers';
 
 interface Props {
   data: AppData;
@@ -54,7 +54,10 @@ function Field({ label, htmlFor, problems, children }: { label: string; htmlFor:
   );
 }
 
-/** League setup: the league fields, the price import and the price table. */
+/**
+ * League setup: the league fields, then the prices and bans: the price starting choices (build by hand, paste or
+ * upload a list, suggested prices), the tier board that edits the prices as tiers, and the bans list.
+ */
 export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, onImport, actions }: Props) {
   const formId = useId();
   const existing = file?.league;
@@ -78,7 +81,7 @@ export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, o
     }
     return out;
   }, [file, data.snapshot]);
-  const hasPrices = Object.keys(prices).length > 0;
+  const hasPrices = tiersOf(prices, data.snapshot.species).length > 0;
   const showBoard = hasPrices || emptyTiers.length > 0;
 
   const drafters = lines(draftersText);
@@ -160,7 +163,9 @@ export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, o
         </section>
       </form>
 
-      <PriceStart first={!showBoard} panel={panel} onPanel={setPanel} onBuild={() => setEmptyTiers([10])} canSuggest={data.snapshot.usage !== null} />
+      <section aria-labelledby={`${formId}-prices`}>
+        <h2 id={`${formId}-prices`}>Prices and bans</h2>
+        <PriceStart first={!showBoard} panel={panel} onPanel={setPanel} onBuild={() => setEmptyTiers([10])} canSuggest={data.snapshot.usage !== null} />
       {panel === 'paste' && (
         <PriceImport
           snapshot={data.snapshot}
@@ -192,7 +197,8 @@ export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, o
           confirm={actions.confirm}
         />
       )}
-      <BanList species={data.snapshot.species} bans={bans} onBans={setBans} />
+        <BanList species={data.snapshot.species} bans={bans} onBans={setBans} />
+      </section>
 
       <ul className="problems" aria-live="polite">
         {other.map((p) => (

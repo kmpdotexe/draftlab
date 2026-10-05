@@ -63,7 +63,7 @@ export function SuggestPrices({ snapshot, hasPrices, confirm, onApply }: Props) 
       <p aria-live="polite">
         {summary === null
           ? 'Whole numbers only, 0 or more.'
-          : `${summary.tiered} Pokémon in ${summary.tierCount} tiers` +
+          : `${summary.tiered} Pokémon in ${summary.tierCount} tier${summary.tierCount === 1 ? '' : 's'}` +
             (summary.rest > 0 ? `, ${summary.rest} more at ${restPoints} point${restPoints === 1 ? '' : 's'}` : '') +
             `; ${summary.left} ${leaveOut ? 'others' : 'without ladder use'} are left out.`}
       </p>

@@ -42,6 +42,7 @@ test('sets up a league from a CSV, records picks, and shows suggestions with rea
   );
   await page.getByRole('button', { name: 'Import', exact: true }).click();
   await expect(page.getByText('6 prices imported.')).toBeVisible();
+  await expect(page.getByRole('group', { name: '20-point tier, 1 Pokémon' })).toBeVisible();
 
   await page.getByLabel('League name').fill('E2E League');
   await page.getByLabel(/Drafters/).fill('Ana\nBen\nCy');

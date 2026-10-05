@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from 'react';
+import { memo, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ID } from '../../domain/id';
 import type { SpeciesEntry } from '../../domain/types';
 import { OptionPicker } from '../team/OptionPicker';
@@ -30,12 +30,22 @@ interface CardProps {
   options: readonly Option[];
   taken: readonly number[];
   note(text: string): void;
+  focusPoints: number | null;
+  setFocusPoints(points: number | null): void;
 }
 
-function TierCard({ tier, props, options, taken, note }: CardProps) {
+function TierCard({ tier, props, options, taken, note, focusPoints, setFocusPoints }: CardProps) {
   const { species, prices, bans, draftedBy, emptyTiers, onEmptyTiers, onPrices, confirm } = props;
   const [draft, setDraft] = useState<string | null>(null);
   const title = `${tier.points}-point tier`;
+  const hintId = `tier-hint-${useId()}`;
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (focusPoints === tier.points) {
+      inputRef.current?.focus();
+      setFocusPoints(null);
+    }
+  }, [focusPoints, tier.points, setFocusPoints]);
   const others = useMemo(() => options.filter((option) => prices[option.id] !== tier.points), [options, prices, tier.points]);
 
   const commitPoints = () => {
@@ -44,8 +54,9 @@ function TierCard({ tier, props, options, taken, note }: CardProps) {
     if (points === null) return;
     setDraft(null);
     if (points === tier.points) return;
+    setFocusPoints(points);
     const merging = taken.includes(points);
-    const rest = emptyTiers.filter((p) => p !== tier.points && !(merging && p === points));
+    const rest = emptyTiers.filter((p) => p !== tier.points && !(merging && tier.members.length > 0 && p === points));
     onEmptyTiers(tier.members.length === 0 && !merging ? [...rest, points] : rest);
     if (tier.members.length > 0) {
       const next = { ...prices };
@@ -82,11 +93,14 @@ function TierCard({ tier, props, options, taken, note }: CardProps) {
         <label>
           Points for this tier{' '}
           <input
+            ref={inputRef}
             type="number"
             min={0}
             step={1}
             value={draft ?? String(tier.points)}
             onChange={(event) => setDraft(event.target.value)}
+            aria-describedby={hintId}
+            aria-invalid={draft !== null && parseWholePoints(draft) === null}
             onBlur={commitPoints}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
@@ -96,8 +110,8 @@ function TierCard({ tier, props, options, taken, note }: CardProps) {
             }}
           />
         </label>
-        <span className="field-error" aria-live="polite">{draft !== null && parseWholePoints(draft) === null ? POINTS_HINT : ''}</span>
-        <button type="button" className="danger" onClick={remove}>
+        <span id={hintId} className="field-error" aria-live="polite">{draft !== null && parseWholePoints(draft) === null ? POINTS_HINT : ''}</span>
+        <button type="button" className="danger" onMouseDown={(event) => event.preventDefault()} onClick={remove}>
           Remove tier
         </button>
       </div>
@@ -135,6 +149,7 @@ export const TierBoard = memo(function TierBoard(props: Props) {
   const [message, setMessage] = useState('');
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
+  const [focusPoints, setFocusPoints] = useState<number | null>(null);
   const options = useMemo<Option[]>(() => speciesOptions(species), [species]);
   const priced = tiersOf(prices, species);
   const tiers: Tier[] = [...priced, ...emptyTiers.filter((p) => !priced.some((t) => t.points === p)).map((points) => ({ points, members: [] }))].sort(
@@ -151,7 +166,7 @@ export const TierBoard = memo(function TierBoard(props: Props) {
         {message}
       </p>
       {tiers.map((tier) => (
-        <TierCard key={tier.points} tier={tier} props={props} options={options} taken={tiers.map((t) => t.points)} note={setMessage} />
+        <TierCard key={tier.points} tier={tier} props={props} options={options} taken={tiers.map((t) => t.points)} note={setMessage} focusPoints={focusPoints} setFocusPoints={setFocusPoints} />
       ))}
       <button type="button" onClick={() => onEmptyTiers([...emptyTiers, nextTierPoints(tiers.map((t) => t.points))])}>
         Add tier

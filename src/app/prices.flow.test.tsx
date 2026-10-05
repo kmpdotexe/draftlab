@@ -88,6 +88,18 @@ describe('starting points', () => {
   });
 });
 
+describe('importing a template', () => {
+  it('imports a partly filled template without a problem for every blank row', async () => {
+    const { user } = await freshSetup();
+    const filled = templateCsv(data.snapshot.species)
+      .split('\n')
+      .map((line) => (line === 'Garchomp,' ? 'Garchomp,16' : line === 'Torkoal,' ? 'Torkoal,4' : line));
+    await pasteList(user, filled);
+    expect(screen.getByText('2 prices imported.')).toBeTruthy();
+    expect(screen.queryByText(/is not a whole number of points/)).toBeNull();
+  });
+});
+
 describe('the tier board', () => {
   it('builds tiers by hand, moves and removes Pokémon, merges tiers, and removes a tier after asking', async () => {
     const { actions, questions } = fakeActions([true]);
@@ -136,6 +148,26 @@ describe('the tier board', () => {
     ]);
     expect(screen.queryByRole('group', { name: /^16-point tier/ })).toBeNull();
     expect(screen.getByRole('group', { name: '4-point tier, 1 Pokémon' })).toBeTruthy();
+  });
+
+  it('merging an empty tier into another empty tier keeps one tier and the board', async () => {
+    const { user } = await freshSetup();
+    await user.click(screen.getByRole('button', { name: 'Build tiers by hand' }));
+    await user.click(screen.getByRole('button', { name: 'Add tier' }));
+    const five = within(screen.getByRole('group', { name: '5-point tier, 0 Pokémon' })).getByLabelText('Points for this tier');
+    await user.clear(five);
+    await user.type(five, '10{Enter}');
+    expect(screen.getByRole('group', { name: '10-point tier, 0 Pokémon' })).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'How do you want to set prices?' })).toBeNull();
+  });
+
+  it('keeps focus in the points box after a points edit', async () => {
+    const { user } = await freshSetup();
+    await user.click(screen.getByRole('button', { name: 'Build tiers by hand' }));
+    const points = screen.getByLabelText('Points for this tier');
+    await user.clear(points);
+    await user.type(points, '12{Enter}');
+    expect(document.activeElement).toBe(within(screen.getByRole('group', { name: /^12-point tier/ })).getByLabelText('Points for this tier'));
   });
 
   it('refuses a tier points value that is not a whole number', async () => {

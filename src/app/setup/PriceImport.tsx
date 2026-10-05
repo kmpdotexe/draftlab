@@ -19,7 +19,12 @@ export function PriceImport({ snapshot, onImport, onTemplate }: Props) {
   const [readError, setReadError] = useState(false);
 
   const run = (input: string) => {
-    const parsed = parsePriceCsv(input, snapshot);
+    // Rows whose points are still empty (a partly filled template) are blanked, not reported; line numbers stay right.
+    const filled = input
+      .split(/\r?\n/)
+      .map((line) => (/[,\t][\s"']*$/.test(line) ? '' : line))
+      .join('\n');
+    const parsed = parsePriceCsv(filled, snapshot);
     setResult(parsed);
     onImport(parsed.prices);
   };
