@@ -163,8 +163,8 @@ export function Workspace({ data, storage, actions, now }: Props) {
       )}
       {banners.map((banner) => (
         <div key={banner.id} className="banner warning">
-          <p>{banner.text}</p>
-          <button type="button" onClick={() => setBanners((shown) => shown.filter((b) => b.id !== banner.id))}>
+          <p id={`data-banner-${banner.id}`}>{banner.text}</p>
+          <button type="button" aria-describedby={`data-banner-${banner.id}`} onClick={() => setBanners((shown) => shown.filter((b) => b.id !== banner.id))}>
             Dismiss
           </button>
         </div>

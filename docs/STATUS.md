@@ -6,7 +6,7 @@ Last updated 2026-10-04. This file is a map for someone new to the repo: where t
 
 A single-user web app for Pokémon VGC draft leagues. You describe your league (format, drafters, draft order, points budget), record the draft, build your roster with full sets, and get explained suggestions for who to draft next. It is aimed at people who do not know the less popular ladder picks. The current ladder is Pokémon Champions, Reg M-B.
 
-The UI so far is the draft room (league setup, a live draft with suggestions) and the teambuilder (sets for your roster, Showdown paste import and export, match teams), autosaved in the browser. It is built and deployed to GitHub Pages by `.github/workflows/site.yml`, which also refreshes the data every week.
+The UI so far is the draft room (league setup, a live draft with suggestions) and the teambuilder (sets for your roster, Showdown paste import and export, match teams), autosaved in the browser. It is built and deployed to GitHub Pages by `.github/workflows/site.yml` (from the first run after the rollout steps in the hosting spec), which also refreshes the data every week.
 
 ## Where we are
 
@@ -76,6 +76,7 @@ Stage 2 is the one exception to step 2: the implementation plan document was not
 - `Suggestion.score` is now a percentile-based fit score, not an absolute grade: it means "how this candidate compares with the rest of the pool for this roster", and is not comparable across different rosters or calls. The per-signal absolute scores are still in `signals[].score`.
 - Combined scores are ranking-only, more than ever: two different `suggest()` calls can both put their best candidate near 1.0, even though one roster's pool is stronger than the other's.
 - Small parked items from earlier reviews: a saved set or team keeps unknown nested keys through a save; item legality ignores the format's rule table (Reg M-B has no item bans); the paste parser does not keep each block's source text for highlighting; draft-state derivation is recomputed per `checkPick` call, so the UI should derive the draft once and pass it around.
+- GitHub pauses scheduled workflows in a public repo after 60 days without activity; the stale-data banner (45 days) is the warning, and "Run workflow" in the Actions tab restarts the refresh.
 
 ## Good places for a reviewer to push
 

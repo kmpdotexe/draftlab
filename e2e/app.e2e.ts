@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseDraftFile, serializeDraftFile, type DraftFile } from '../src/domain/file';
 import type { Snapshot, SnapshotMeta } from '../src/domain/types';
+import { dataSummary } from '../src/app/text/data-age';
 import { STORAGE_KEY } from '../src/app/state/storage';
 import { commonSet } from '../src/app/team/options';
 
@@ -91,8 +92,7 @@ test('loads every script from under /draftlab/ and shows the data line', async (
   });
   await page.goto('./');
   const footer = page.getByRole('contentinfo');
-  await expect(footer).toContainText(`Smogon ladder usage for ${meta.usage!.month}`);
-  await expect(footer).toContainText('updated');
+  await expect(footer).toContainText(dataSummary(meta));
   // The app chunk plus the lazily loaded snapshot and meta chunks.
   expect(scripts.length).toBeGreaterThanOrEqual(3);
   expect(scripts.filter((path) => !path.startsWith('/draftlab/assets/'))).toEqual([]);

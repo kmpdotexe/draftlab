@@ -14,7 +14,11 @@ let cached: AppData | null = null;
 export function realData(): AppData {
   if (cached === null) {
     const read = (name: string) => JSON.parse(readFileSync(join(process.cwd(), 'data', 'gen9championsvgc2026regmb', name), 'utf8'));
-    cached = { snapshot: read('snapshot.json') as Snapshot, meta: read('meta.json') as SnapshotMeta };
+    // generatedAt is the time of the first read, not the committed file's date: the app warns about data older than 45 days
+    // (an extra Dismiss button), and tests must not start failing as the committed data ages. Tests that need old or specific
+    // dates set generatedAt themselves.
+    const meta = { ...(read('meta.json') as SnapshotMeta), generatedAt: new Date().toISOString() };
+    cached = { snapshot: read('snapshot.json') as Snapshot, meta };
   }
   return cached;
 }
