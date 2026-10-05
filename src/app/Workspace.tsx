@@ -208,6 +208,7 @@ export function Workspace({ data, storage, actions, now }: Props) {
                 }
           }
           onImport={file === null ? importFile : undefined}
+          actions={actions}
         />
       ) : view === 'team' ? (
         <TeambuilderView data={data} file={file} names={names} errors={state.errors} dispatch={apply} actions={actions} />

@@ -317,8 +317,7 @@ describe('with the draft', () => {
     expect(screen.getByRole('button', { name: 'Draft room' }).getAttribute('aria-current')).toBeNull();
 
     // Banning a drafted Pokémon is refused; switching view drops the refusal.
-    await user.type(screen.getByLabelText('Search'), 'Garchomp');
-    await user.click(screen.getByLabelText('Ban Garchomp'));
+    await user.type(screen.getByRole('combobox', { name: 'Ban a Pokémon' }), 'Garchomp{Enter}');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByText('this would break pick 1: "garchomp" is banned in this league')).toBeTruthy();
     await user.click(screen.getByRole('button', { name: 'Teambuilder' }));

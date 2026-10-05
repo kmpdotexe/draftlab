@@ -1,12 +1,18 @@
-import { useId, useState, type ReactNode } from 'react';
+import { useId, useMemo, useState, type ReactNode } from 'react';
+import { deriveDraft } from '../../domain/derive';
 import type { DraftFile } from '../../domain/file';
 import type { ID } from '../../domain/id';
 import { validateLeague, type DraftOrder, type LeagueConfig } from '../../domain/league';
 import type { Problem } from '../../domain/problem';
+import type { BrowserActions } from '../browser';
 import type { AppData } from '../data/snapshot';
 import { FileButton } from '../FileButton';
+import { BanList } from './BanList';
 import { PriceImport } from './PriceImport';
-import { PriceTable } from './PriceTable';
+import { PriceStart, type PricePanel } from './PriceStart';
+import { SuggestPrices } from './SuggestPrices';
+import { TierBoard } from './TierBoard';
+import { templateCsv } from './tiers';
 
 interface Props {
   data: AppData;
@@ -20,6 +26,8 @@ interface Props {
   onNewLeague?(): void;
   /** Import a saved draft file's text, or null when it could not be read (only when there is no draft yet). */
   onImport?(text: string | null): void;
+  /** Questions and downloads (the price template). */
+  actions: BrowserActions;
 }
 
 const lines = (text: string): string[] =>
@@ -47,7 +55,7 @@ function Field({ label, htmlFor, problems, children }: { label: string; htmlFor:
 }
 
 /** League setup: the league fields, the price import and the price table. */
-export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, onImport }: Props) {
+export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, onImport, actions }: Props) {
   const formId = useId();
   const existing = file?.league;
   const locked = (file?.picks.length ?? 0) > 0;
@@ -60,6 +68,18 @@ export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, o
   const [prices, setPrices] = useState<Record<ID, number>>({ ...(existing?.prices ?? {}) });
   const [bans, setBans] = useState<ID[]>([...(existing?.extraBans ?? [])]);
   const [attempted, setAttempted] = useState(false);
+  const [panel, setPanel] = useState<PricePanel>(null);
+  const [emptyTiers, setEmptyTiers] = useState<number[]>([]);
+  const draftedBy = useMemo(() => {
+    const out: Record<ID, string> = {};
+    if (file === null) return out;
+    for (const drafter of deriveDraft(file.league, file.picks, data.snapshot).drafters) {
+      for (const id of drafter.roster) out[id] = drafter.name;
+    }
+    return out;
+  }, [file, data.snapshot]);
+  const hasPrices = Object.keys(prices).length > 0;
+  const showBoard = hasPrices || emptyTiers.length > 0;
 
   const drafters = lines(draftersText);
   const league: LeagueConfig = {
@@ -140,21 +160,39 @@ export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, o
         </section>
       </form>
 
-      <PriceImport snapshot={data.snapshot} onImport={(imported) => setPrices((current) => ({ ...current, ...imported }))} onTemplate={() => {}} />
-      <PriceTable
-        snapshot={data.snapshot}
-        prices={prices}
-        bans={bans}
-        onPrice={(id, price) =>
-          setPrices((current) => {
-            const next = { ...current };
-            if (price === null) delete next[id];
-            else next[id] = price;
-            return next;
-          })
-        }
-        onBan={(id, banned) => setBans((current) => (banned ? [...current.filter((b) => b !== id), id] : current.filter((b) => b !== id)))}
-      />
+      <PriceStart first={!showBoard} panel={panel} onPanel={setPanel} onBuild={() => setEmptyTiers([10])} canSuggest={data.snapshot.usage !== null} />
+      {panel === 'paste' && (
+        <PriceImport
+          snapshot={data.snapshot}
+          onImport={(imported) => setPrices((current) => ({ ...current, ...imported }))}
+          onTemplate={() => actions.download('draftlab-prices-template.csv', templateCsv(data.snapshot.species))}
+        />
+      )}
+      {panel === 'suggest' && (
+        <SuggestPrices
+          snapshot={data.snapshot}
+          hasPrices={hasPrices}
+          confirm={actions.confirm}
+          onApply={(suggested) => {
+            setPrices(suggested);
+            setEmptyTiers([]);
+            setPanel(null);
+          }}
+        />
+      )}
+      {showBoard && (
+        <TierBoard
+          species={data.snapshot.species}
+          prices={prices}
+          bans={bans}
+          draftedBy={draftedBy}
+          emptyTiers={emptyTiers}
+          onEmptyTiers={setEmptyTiers}
+          onPrices={setPrices}
+          confirm={actions.confirm}
+        />
+      )}
+      <BanList species={data.snapshot.species} bans={bans} onBans={setBans} />
 
       <ul className="problems" aria-live="polite">
         {other.map((p) => (

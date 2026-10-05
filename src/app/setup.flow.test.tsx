@@ -15,7 +15,7 @@ const load = async () => data;
 const CSV = ['Pokemon,Points', 'Incineroar,20', 'Kingambit,18', 'Garchomp,16', 'Torkoal,4', 'Missingno,5', 'Venusaur,four'].join('\n');
 
 describe('setting up a league', () => {
-  it('imports prices from a pasted CSV, fixes one by hand, and starts the draft', async () => {
+  it('imports prices from a pasted CSV, moves one into a new tier, and starts the draft', async () => {
     const user = userEvent.setup();
     const { storage, data: stored } = fakeStorage();
     render(<App load={load} storage={storage} actions={fakeActions().actions} />);
@@ -24,6 +24,8 @@ describe('setting up a league', () => {
     expect(screen.getByText('Format: Champions VGC 2026 Reg M-B')).toBeTruthy();
 
     // CSV import: 4 matched, Missingno unmatched, Venusaur's points are not a number.
+    expect(screen.getByRole('heading', { name: 'How do you want to set prices?' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Paste or upload a price list' }));
     await user.click(screen.getByLabelText(/Paste "name,points" lines/));
     await user.paste(CSV);
     await user.click(screen.getByRole('button', { name: 'Import' }));
@@ -32,12 +34,16 @@ describe('setting up a league', () => {
     expect(within(result).getByText(/Missingno/)).toBeTruthy();
     expect(within(result).getByText('line 7: "four" is not a whole number of points')).toBeTruthy();
 
-    // Fix Torkoal's price in the table.
-    await user.type(screen.getByLabelText('Search'), 'Torkoal');
-    const torkoal = screen.getByLabelText('Points for Torkoal');
-    expect((torkoal as HTMLInputElement).value).toBe('4');
-    await user.clear(torkoal);
-    await user.type(torkoal, '7');
+    // The board shows four tiers; a new tier (2 points: half the lowest) becomes 7, and Torkoal moves into it.
+    expect(screen.getByRole('group', { name: '4-point tier, 1 Pokémon' })).toBeTruthy();
+    await user.click(screen.getByRole('button', { name: 'Add tier' }));
+    const newTier = screen.getByRole('group', { name: '2-point tier, 0 Pokémon' });
+    const points = within(newTier).getByLabelText('Points for this tier');
+    await user.clear(points);
+    await user.type(points, '7{Enter}');
+    await user.type(screen.getByRole('combobox', { name: 'Add a Pokémon to the 7-point tier' }), 'Torkoal{Enter}');
+    expect(screen.getByText('Torkoal moved from 4 to 7 points.')).toBeTruthy();
+    expect(screen.queryByRole('group', { name: /^4-point tier/ })).toBeNull();
 
     await user.type(screen.getByLabelText('League name'), 'Test League');
     await user.type(screen.getByLabelText(/Drafters/), 'Ana{Enter}Ben{Enter}Cy');
@@ -71,7 +77,7 @@ describe('setting up a league', () => {
     expect(stored.has(STORAGE_KEY)).toBe(false);
   });
 
-  it('does not submit the league form when Enter is pressed in the price table search box', async () => {
+  it('does not submit the league form when Enter is pressed in the prices area', async () => {
     const user = userEvent.setup();
     const { storage, data: stored } = fakeStorage();
     render(<App load={load} storage={storage} actions={fakeActions().actions} />);
@@ -80,7 +86,9 @@ describe('setting up a league', () => {
     await user.type(screen.getByLabelText('League name'), 'Test League');
     await user.type(screen.getByLabelText(/Drafters/), 'Ana{Enter}Ben');
 
-    await user.type(screen.getByLabelText('Search'), 'Torkoal{Enter}');
+    await user.click(screen.getByRole('button', { name: 'Build tiers by hand' }));
+    await user.type(screen.getByLabelText('Search Pokémon not in this draft'), 'Torkoal{Enter}');
+    await user.type(screen.getByRole('combobox', { name: 'Ban a Pokémon' }), 'Zzz{Enter}');
 
     expect(screen.getByRole('heading', { name: 'Set up your league' })).toBeTruthy();
     expect(screen.queryByText(/on the clock/)).toBeNull();

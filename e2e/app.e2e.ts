@@ -36,6 +36,7 @@ async function openWith(page: Page, file: DraftFile) {
 test('sets up a league from a CSV, records picks, and shows suggestions with reasons', async ({ page }) => {
   await page.goto('./');
   await expect(page.getByRole('heading', { name: 'Set up your league' })).toBeVisible();
+  await page.getByRole('button', { name: 'Paste or upload a price list' }).click();
   await page.getByLabel(/Paste "name,points" lines/).fill(
     ['Pokemon,Points', 'Incineroar,20', 'Kingambit,18', 'Garchomp,16', 'Sneasler,12', 'Whimsicott,10', 'Torkoal,4'].join('\n'),
   );

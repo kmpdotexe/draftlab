@@ -259,13 +259,13 @@ describe('editing the league mid-draft', () => {
     await user.click(screen.getByRole('button', { name: 'Setup' }));
     expect((screen.getByLabelText(/Drafters/) as HTMLTextAreaElement).disabled).toBe(true);
 
-    await user.type(screen.getByLabelText('Search'), 'Incineroar');
-    await user.click(screen.getByLabelText('Ban Incineroar'));
+    expect(screen.getByText(/drafted by Ana/)).toBeTruthy();
+    await user.type(screen.getByRole('combobox', { name: 'Ban a Pokémon' }), 'Incineroar{Enter}');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByText('this would break pick 1: "incineroar" is banned in this league')).toBeTruthy();
     expect(saved.get(STORAGE_KEY)).toBe(serializeDraftFile(leagueFile(['incineroar'])));
 
-    await user.click(screen.getByLabelText('Ban Incineroar'));
+    await user.click(screen.getByRole('button', { name: 'Unban Incineroar' }));
     await user.clear(screen.getByLabelText('League name'));
     await user.type(screen.getByLabelText('League name'), 'Renamed');
     await user.click(screen.getByRole('button', { name: 'Save' }));
@@ -278,8 +278,7 @@ describe('editing the league mid-draft', () => {
     render(<App load={load} storage={storage} actions={fakeActions().actions} />);
     await screen.findByText('Pick 2 of 6 · Round 1 · You are on the clock');
     await user.click(screen.getByRole('button', { name: 'Setup' }));
-    await user.type(screen.getByLabelText('Search'), 'Incineroar');
-    await user.click(screen.getByLabelText('Ban Incineroar'));
+    await user.type(screen.getByRole('combobox', { name: 'Ban a Pokémon' }), 'Incineroar{Enter}');
     await user.click(screen.getByRole('button', { name: 'Save' }));
     expect(screen.getByText('this would break pick 1: "incineroar" is banned in this league')).toBeTruthy();
 
