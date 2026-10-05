@@ -2,3 +2,5 @@ node_modules/
 dist/
 *.tmp
 .superpowers/
+playwright-report/
+test-results/

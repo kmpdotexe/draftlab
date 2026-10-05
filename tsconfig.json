@@ -12,5 +12,5 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["src", "sync", "vitest.config.ts", "vitest.integration.config.ts", "vite.config.ts"]
+  "include": ["src", "sync", "e2e", "vitest.config.ts", "vitest.integration.config.ts", "vite.config.ts"]
 }
