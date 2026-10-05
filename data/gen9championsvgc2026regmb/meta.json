@@ -2,7 +2,7 @@
   "schemaVersion": 2,
   "formatId": "gen9championsvgc2026regmb",
   "label": "Champions VGC 2026 Reg M-B",
-  "generatedAt": "2026-09-21T04:38:01.580Z",
+  "generatedAt": "2026-10-05T06:09:57.821Z",
   "showdown": {
     "packageVersion": "0.11.11",
     "mod": "champions",
@@ -20,11 +20,11 @@
   },
   "usage": {
     "statsFormatId": "gen9championsvgc2026regmb",
-    "month": "2026-08",
+    "month": "2026-09",
     "cutoff": 1630,
-    "battles": 1269250,
-    "teams": 195185.52136418127,
-    "url": "https://www.smogon.com/stats/2026-08/chaos/gen9championsvgc2026regmb-1630.json.gz",
+    "battles": 326464,
+    "teams": 46278.18321445274,
+    "url": "https://www.smogon.com/stats/2026-09/chaos/gen9championsvgc2026regmb-1630.json",
     "isFallback": false
   },
   "warnings": [
