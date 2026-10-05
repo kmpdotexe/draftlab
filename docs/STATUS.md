@@ -1,6 +1,6 @@
 # Draft Lab: project status
 
-Last updated 2026-10-04. This file is a map for someone new to the repo: where the project stands, how it has been built, and what is deliberately unfinished. The README covers commands and data layout.
+Last updated 2026-10-05. This file is a map for someone new to the repo: where the project stands, how it has been built, and what is deliberately unfinished. The README covers commands and data layout.
 
 ## What it is
 
@@ -10,7 +10,7 @@ The UI so far is the draft room (league setup, a live draft with suggestions) an
 
 ## Where we are
 
-Work so far happened between 2026-09-20 and 2026-10-04. Each increment went through the same cycle (see "How it is built").
+Work so far happened between 2026-09-20 and 2026-10-05. Each increment went through the same cycle (see "How it is built").
 
 | # | Increment | Spec and plan (in `docs/superpowers/`) | State |
 |---|---|---|---|
@@ -24,8 +24,9 @@ Work so far happened between 2026-09-20 and 2026-10-04. Each increment went thro
 | 8 | App shell, increment 1: the draft room (league setup, CSV prices, live draft, suggestions as sentences, autosave, export and import) | `specs/2026-09-29-app-draft-room-design.md`, `plans/2026-09-29-app-draft-room.md` | done: built and reviewed |
 | 9 | App shell, increment 2: the teambuilder (set editor, Showdown paste, match teams; your sets feed the suggestions) | `specs/2026-10-03-app-teambuilder-design.md`, `plans/2026-10-03-app-teambuilder.md` | done: built and reviewed |
 | 10 | App shell, increment 3: hosting and data refresh (GitHub Pages, a weekly data sync, the data's age in the UI, browser tests) | `specs/2026-10-04-app-hosting-design.md`, `plans/2026-10-04-app-hosting.md` | done: built and reviewed |
+| 11 | Setup: price tiers (suggested prices, a tier board instead of the 355-row table) and a bans list | `specs/2026-10-05-price-tiers-design.md`, `plans/2026-10-05-price-tiers.md` | done: built and reviewed |
 
-Tests, all passing: 748 unit tests (including the UI flow tests, which run in jsdom), 21 integration tests and 4 browser tests (Playwright, `e2e/`).
+Tests, all passing: 769 unit tests (including the UI flow tests, which run in jsdom), 21 integration tests and 4 browser tests (Playwright, `e2e/`).
 
 ## Architecture
 

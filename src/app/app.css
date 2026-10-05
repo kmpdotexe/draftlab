@@ -425,3 +425,79 @@ td input[type='number'] {
 .data-footer ul {
   margin: 0.25rem 0 0;
 }
+
+/* Setup: starting choices, tiers and bans */
+.price-start,
+.tier-board,
+.ban-list,
+.suggest-prices {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space);
+  margin-bottom: var(--space);
+}
+.price-start .row button {
+  font-weight: 600;
+}
+.price-start.compact .row button {
+  font-weight: normal;
+}
+.price-start button[aria-pressed='true'] {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+.tier {
+  border-top: 1px solid var(--line);
+  padding: 0.5rem 0;
+}
+.tier-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space);
+  align-items: center;
+}
+.tier-head h4 {
+  margin: 0;
+  min-width: 10rem;
+}
+.suggest-prices input[type='number'],
+.tier-head input[type='number'] {
+  width: 5rem;
+}
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  list-style: none;
+  margin: 0.5rem 0;
+  padding: 0;
+}
+.tags li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.1rem 0.25rem 0.1rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--bg);
+}
+.tags li button {
+  padding: 0 0.4rem;
+  border: none;
+  background: transparent;
+}
+.tag-note {
+  color: var(--muted);
+  font-size: 0.85em;
+}
+.unpriced ul {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  max-height: 24rem;
+  overflow-y: auto;
+}
+.unpriced li {
+  padding: 0.15rem 0;
+}
