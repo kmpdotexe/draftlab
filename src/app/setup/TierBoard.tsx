@@ -48,13 +48,13 @@ function TierCard({ tier, props, options, taken, note, focusPoints, setFocusPoin
   }, [focusPoints, tier.points, setFocusPoints]);
   const others = useMemo(() => options.filter((option) => prices[option.id] !== tier.points), [options, prices, tier.points]);
 
-  const commitPoints = () => {
+  const commitPoints = (refocus: boolean) => {
     if (draft === null) return;
     const points = parseWholePoints(draft);
     if (points === null) return;
     setDraft(null);
     if (points === tier.points) return;
-    setFocusPoints(points);
+    if (refocus) setFocusPoints(points);
     const merging = taken.includes(points);
     const rest = emptyTiers.filter((p) => p !== tier.points && !(merging && tier.members.length > 0 && p === points));
     onEmptyTiers(tier.members.length === 0 && !merging ? [...rest, points] : rest);
@@ -101,11 +101,11 @@ function TierCard({ tier, props, options, taken, note, focusPoints, setFocusPoin
             onChange={(event) => setDraft(event.target.value)}
             aria-describedby={hintId}
             aria-invalid={draft !== null && parseWholePoints(draft) === null}
-            onBlur={commitPoints}
+            onBlur={() => commitPoints(false)}
             onKeyDown={(event) => {
               if (event.key === 'Enter') {
                 event.preventDefault();
-                commitPoints();
+                commitPoints(true);
               }
             }}
           />

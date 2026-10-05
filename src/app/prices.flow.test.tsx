@@ -170,6 +170,17 @@ describe('the tier board', () => {
     expect(document.activeElement).toBe(within(screen.getByRole('group', { name: /^12-point tier/ })).getByLabelText('Points for this tier'));
   });
 
+  it('does not pull focus back to the points box after Tab', async () => {
+    const { user } = await freshSetup();
+    await user.click(screen.getByRole('button', { name: 'Build tiers by hand' }));
+    const points = screen.getByLabelText('Points for this tier');
+    await user.clear(points);
+    await user.type(points, '12');
+    await user.tab();
+    const tier = screen.getByRole('group', { name: /^12-point tier/ });
+    expect(document.activeElement).not.toBe(within(tier).getByLabelText('Points for this tier'));
+  });
+
   it('refuses a tier points value that is not a whole number', async () => {
     const { user } = await freshSetup();
     await user.click(screen.getByRole('button', { name: 'Build tiers by hand' }));

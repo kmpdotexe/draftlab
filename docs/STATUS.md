@@ -26,7 +26,7 @@ Work so far happened between 2026-09-20 and 2026-10-05. Each increment went thro
 | 10 | App shell, increment 3: hosting and data refresh (GitHub Pages, a weekly data sync, the data's age in the UI, browser tests) | `specs/2026-10-04-app-hosting-design.md`, `plans/2026-10-04-app-hosting.md` | done: built and reviewed |
 | 11 | Setup: price tiers (suggested prices, a tier board instead of the 355-row table) and a bans list | `specs/2026-10-05-price-tiers-design.md`, `plans/2026-10-05-price-tiers.md` | done: built and reviewed |
 
-Tests, all passing: 772 unit tests (including the UI flow tests, which run in jsdom), 21 integration tests and 4 browser tests (Playwright, `e2e/`).
+Tests, all passing: 773 unit tests (including the UI flow tests, which run in jsdom), 21 integration tests and 4 browser tests (Playwright, `e2e/`).
 
 ## Architecture
 
