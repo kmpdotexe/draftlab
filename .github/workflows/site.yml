@@ -27,7 +27,7 @@ permissions:
 
 jobs:
   sync:
-    if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.sync)
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.sync))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -67,10 +67,14 @@ jobs:
     needs: sync
     if: ${{ !failure() && !cancelled() }}
     runs-on: ubuntu-latest
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v7
         with:
           ref: main
+      - id: commit
+        run: echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -92,7 +96,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: main
+          ref: ${{ needs.build.outputs.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: 24
@@ -134,13 +138,13 @@ jobs:
         uses: actions/deploy-pages@v5
 
   smoke:
-    needs: deploy
-    if: ${{ !failure() && !cancelled() }}
+    needs: [build, deploy]
+    if: ${{ needs.deploy.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
         with:
-          ref: main
+          ref: ${{ needs.build.outputs.sha }}
       - uses: actions/setup-node@v7
         with:
           node-version: 24
