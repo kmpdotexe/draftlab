@@ -8,10 +8,12 @@ interface Props {
   snapshot: LegalSpeciesSource;
   /** Receives the matched prices; the caller merges them into its table. */
   onImport(prices: Record<ID, number>): void;
+  /** Offers the price-list template (every legal Pokémon with an empty points column) as a download. */
+  onTemplate(): void;
 }
 
 /** Paste or upload a "name,points" list; shows what matched, what did not, and the problems by line. */
-export function PriceImport({ snapshot, onImport }: Props) {
+export function PriceImport({ snapshot, onImport, onTemplate }: Props) {
   const [text, setText] = useState('');
   const [result, setResult] = useState<PriceImportResult | null>(null);
   const [readError, setReadError] = useState(false);
@@ -26,10 +28,16 @@ export function PriceImport({ snapshot, onImport }: Props) {
     <section className="price-import" aria-labelledby="price-import-title">
       <h3 id="price-import-title">Import prices</h3>
       <label htmlFor="price-csv">Paste "name,points" lines (a header line is fine)</label>
+      <p className="note">
+        One Pokémon per line, for example <code>Garchomp,16</code>. Pokémon not on the list are not in this draft.
+      </p>
       <textarea id="price-csv" rows={6} value={text} onChange={(event) => setText(event.target.value)} />
       <div className="row">
         <button type="button" onClick={() => run(text)} disabled={text.trim() === ''}>
           Import
+        </button>
+        <button type="button" onClick={onTemplate}>
+          Download a template
         </button>
         <FileButton
           label="Upload a file"

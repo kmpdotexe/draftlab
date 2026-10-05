@@ -140,7 +140,7 @@ export function SetupView({ data, file, errors, onSave, onCancel, onNewLeague, o
         </section>
       </form>
 
-      <PriceImport snapshot={data.snapshot} onImport={(imported) => setPrices((current) => ({ ...current, ...imported }))} />
+      <PriceImport snapshot={data.snapshot} onImport={(imported) => setPrices((current) => ({ ...current, ...imported }))} onTemplate={() => {}} />
       <PriceTable
         snapshot={data.snapshot}
         prices={prices}
