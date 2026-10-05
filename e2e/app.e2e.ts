@@ -4,11 +4,16 @@ import { join } from 'node:path';
 import { parseDraftFile, serializeDraftFile, type DraftFile } from '../src/domain/file';
 import type { Snapshot, SnapshotMeta } from '../src/domain/types';
 import { STORAGE_KEY } from '../src/app/state/storage';
+import { commonSet } from '../src/app/team/options';
 
 // The gate tests: the built site (served by `vite preview` under /draftlab/) in a real browser.
 const read = (name: string) => JSON.parse(readFileSync(join(process.cwd(), 'data', 'gen9championsvgc2026regmb', name), 'utf8'));
 const snapshot = read('snapshot.json') as Snapshot;
 const meta = read('meta.json') as SnapshotMeta;
+
+/** Garchomp's ladder-common first move, from the same data the site is built with (it can change with each data refresh). */
+const commonFirstMove = commonSet('garchomp', snapshot)?.moves?.[0] ?? '';
+const commonFirstMoveName = snapshot.moves[commonFirstMove]?.name ?? '';
 
 /** One pick for you (Ana, slot 0) in a two-drafter league. */
 const savedDraft: DraftFile = {
@@ -51,21 +56,22 @@ test('sets up a league from a CSV, records picks, and shows suggestions with rea
   await expect(page.getByText('Pick 4 of 6 · Round 2 · Cy is on the clock')).toBeVisible();
   const firstCard = page.locator('.cards .card').first();
   await expect(firstCard).toBeVisible();
-  expect(await firstCard.locator('.reasons li').count()).toBeGreaterThan(0);
+  await expect(firstCard.locator('.reasons li').first()).toBeVisible();
 });
 
 test('keeps a set made in the teambuilder after the page is reloaded', async ({ page }) => {
+  expect(commonFirstMoveName).not.toBe('');
   await openWith(page, savedDraft);
   await page.getByRole('button', { name: 'Teambuilder' }).click();
   await page.getByRole('button', { name: 'Start from the common set' }).click();
-  await expect(page.getByRole('combobox', { name: 'Move 1' })).toHaveValue('Dragon Claw');
+  await expect(page.getByRole('combobox', { name: 'Move 1' })).toHaveValue(commonFirstMoveName);
 
   await page.reload();
   await page.getByRole('button', { name: 'Teambuilder' }).click();
-  await expect(page.getByRole('combobox', { name: 'Move 1' })).toHaveValue('Dragon Claw');
+  await expect(page.getByRole('combobox', { name: 'Move 1' })).toHaveValue(commonFirstMoveName);
   const stored = await page.evaluate((key) => localStorage.getItem(key), STORAGE_KEY);
   const parsed = parseDraftFile(stored ?? '', snapshot);
-  expect(parsed.ok && parsed.file.sets.garchomp?.moves?.[0]).toBe('dragonclaw');
+  expect(parsed.ok && parsed.file.sets.garchomp?.moves?.[0]).toBe(commonFirstMove);
 });
 
 test('exports the draft as a file the app can read back', async ({ page }) => {
